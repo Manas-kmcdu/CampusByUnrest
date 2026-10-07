@@ -1,3 +1,4 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Unrest Campus</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -123,11 +124,49 @@ button,input{font:inherit;color:inherit}
   #prompt{bottom:84px}
 }
 @media (max-width:560px){
-  .logo{font-size:24px}
-  .emotes button{width:30px}
+  body{font-size:13px;overscroll-behavior:none}
+  .top{padding:calc(8px + env(safe-area-inset-top)) 10px 0;gap:6px;align-items:flex-start}
+  .brand{padding:6px 9px 5px;box-shadow:2px 2px 0 var(--ink);max-width:48vw}
+  .logo{font-size:22px}
+  .emotes button{width:30px;height:30px}
   .brand .mono{display:none}
+  .tools{gap:5px;max-width:48vw}
+  .tools .chip{padding:5px 7px;box-shadow:2px 2px 0 var(--ink);font-size:9px}
+  .tools .btn{padding:6px 7px;font-size:9px;box-shadow:2px 2px 0 var(--ink)}
+  .tools #bPlaces,.tools #bPass{display:none}
   #panel h2{font-size:36px}
+  #panel{padding:16px 14px calc(18px + env(safe-area-inset-bottom));width:100%;border-left:0;border-top:2px solid var(--ink);top:auto;height:min(78dvh,620px);transform:translateY(102%);box-shadow:0 -5px 0 rgba(31,30,28,.22)}
+  #panel.on{transform:none}
+  #prompt{bottom:calc(92px + env(safe-area-inset-bottom));max-width:calc(100% - 150px);font-size:10px;padding:7px 9px}
+  #chat{left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));transform:none;max-width:none;min-width:0;padding:5px;gap:5px}
+  #chat input{padding:8px;font-size:12px}
+  #joy{right:12px;bottom:calc(76px + env(safe-area-inset-bottom));width:108px;height:108px;background:rgba(233,226,209,.88);z-index:4}
+  #joy i{width:42px;height:42px;margin:-21px 0 0 -21px}
+  #roomBar{left:10px;top:calc(10px + env(safe-area-inset-top));right:10px;justify-content:space-between;padding:6px 7px 6px 10px}
+  #roomBar .btn{padding:7px 9px}
+  #roomName{font-size:9px}
+  .sheet{padding:8px}
+  .card{padding:16px 12px calc(16px + env(safe-area-inset-bottom));box-shadow:3px 3px 0 var(--ink);max-height:92dvh}
+  .card h2{font-size:34px}
+  .grid{grid-template-columns:1fr;gap:8px}
+  .tg-row{grid-template-columns:48px 1fr 55px auto auto;gap:4px;font-size:11px}
+  .tg-row .btn{padding:6px 5px;font-size:9px}
+  #splash .sp{padding:calc(18px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));gap:18px}
+  .sp h1{font-size:clamp(50px,16vw,78px)}
+  .id{padding:10px;box-shadow:3px 3px 0 var(--ink)}
+  .idfoot .btn{flex:1;min-width:0}
 }
+@media (min-width:561px) and (max-width:820px){
+  .top{padding:10px 12px}
+  .tools .chip{padding:6px 8px}
+  .tools .btn{padding:6px 8px}
+  #chat{max-width:calc(100% - 170px);min-width:0}
+}
+@media (pointer:coarse){
+  #world,#roomCv{cursor:default}
+  .btn,.row,.opt,.sw,.emotes button{min-height:36px}
+}
+
 @media (prefers-reduced-motion:reduce){#panel,#toast{transition:none}#room{transition:none}}
 #room{position:absolute;inset:0;background:var(--ink);opacity:0;visibility:hidden;transition:opacity .25s,visibility .25s;touch-action:none}
 #room.on{opacity:1;visibility:visible}
@@ -791,6 +830,45 @@ function buildWorld(Sx){
   // flat sort + register buildings
   ['library','admin','auditorium','stock','dream','class','society','canteen','playground','mystery'].forEach(id=>{ const l=LOC[id]; add(l.y+l.h,()=>draw[id](l)); });
 
+  /* ---------- festive season: road lights + campus decorations ---------- */
+  function festBulb(x,y,col,size){
+    c.save(); c.shadowColor='rgba(255,220,130,.65)'; c.shadowBlur=10; dot(x,y,size||4,col,C.ink); c.restore();
+  }
+  function festLamp(x,y,flip){
+    c.save(); c.strokeStyle=C.ink2; c.lineWidth=2; c.beginPath(); c.moveTo(x,y+24); c.lineTo(x,y-26); c.stroke();
+    c.strokeStyle=C.ink; c.lineWidth=1.4; c.beginPath(); c.arc(x+(flip?-7:7),y-26,7,Math.PI,PI2); c.stroke();
+    festBulb(x+(flip?-7:7),y-31,C.ochre,4.2); c.restore();
+  }
+  function festString(x1,y1,x2,y2,n){
+    c.save(); c.strokeStyle='rgba(31,30,28,.58)'; c.lineWidth=1.2; c.beginPath(); c.moveTo(x1,y1); c.quadraticCurveTo((x1+x2)/2,(y1+y2)/2+16,x2,y2); c.stroke();
+    const cols=[C.red,C.ochre,C.green,'#8C6A8A','#5E7F7C'];
+    for(let i=0;i<n;i++){ const q=i/(n-1), x=x1+(x2-x1)*q, base=y1+(y2-y1)*q+Math.sin(q*Math.PI)*16; festBulb(x,base+5,cols[i%cols.length],3.2); }
+    c.restore();
+  }
+  function festBanner(x,y,text,rot){
+    c.save(); c.translate(x,y); c.rotate(rot||0);
+    sRect(-72,-14,144,28,'#E6DECB',C.ink,1.3,.4);
+    c.fillStyle=C.red; c.beginPath(); c.moveTo(-72,-14); c.lineTo(-48,-14); c.lineTo(-60,14); c.closePath(); c.fill();
+    c.fillStyle=C.greenD; c.beginPath(); c.moveTo(72,-14); c.lineTo(48,-14); c.lineTo(60,14); c.closePath(); c.fill();
+    txt(text,0,0,10,C.ink,'center','600'); c.restore();
+  }
+  function festiveRoad(a,b,w){
+    const A=NODES[a],B=NODES[b], dx=B[0]-A[0],dy=B[1]-A[1], len=Math.hypot(dx,dy), nx=-dy/len, ny=dx/len;
+    const count=Math.max(2,Math.floor(len/145));
+    for(let i=1;i<count;i++){ const q=i/count, x=A[0]+dx*q, y=A[1]+dy*q; add(y+8,()=>{ festLamp(x+nx*(w*.62),y+ny*(w*.62),i%2); festLamp(x-nx*(w*.62),y-ny*(w*.62),!(i%2)); }); }
+    add((A[1]+B[1])/2+20,()=>festString(A[0]+nx*(w*.55),A[1]+ny*(w*.55),B[0]+nx*(w*.55),B[1]+ny*(w*.55),Math.max(5,Math.floor(len/90))));
+  }
+  [['N0','N1'],['N1','N2'],['N2','Q4'],['Q0','Q1'],['Q1','Q2'],['Q2','Q3'],['Q3','Q4'],['Q4','Q5'],['Q5','Q6'],['Q6','Q7'],['Q7','Q0'],['Q0','T'],['T','SM'],['SM','DR'],['DR','EN'],['EN','ES'],['ES','PG'],['PGw','Q2'],['CG','AD'],['AD','T'],['CL','CGs'],['CGs','CL2'],['CL2','Q6'],['CL','SHn'],['SHn','SHw'],['SHw','SH'],['SH','CN'],['CN','N2']].forEach(([a,b])=>festiveRoad(a,b,edgeW(a,b)));
+  add(790,()=>{ festString(1450,815,2150,815,11); festString(1490,1278,2110,1278,10); festBanner(1800,790,'FESTIVE WEEK',-.01); });
+  add(1320,()=>{ festString(1270,1318,1660,1318,7); festBanner(1460,1290,'CANTEEN NIGHTS',.02); });
+  add(1550,()=>{ for(let i=0;i<7;i++){ const x=1310+i*52; festBulb(x,1590,[C.red,C.ochre,C.green,'#8C6A8A'][i%4],4); } });
+  // small seasonal decoration clusters around the quad and gate
+  [[1570,1320],[2030,1320],[1680,1910],[1920,1910],[2780,700],[3240,700]].forEach(([x,y],i)=>add(y+8,()=>{
+    c.save(); c.strokeStyle=C.ink2; c.lineWidth=1.3; c.beginPath(); c.moveTo(x,y+20); c.lineTo(x,y-10); c.stroke();
+    for(let j=0;j<4;j++){ const a=-Math.PI/2+j*.8; festBulb(x+Math.cos(a)*16,y-10+Math.sin(a)*16,[C.red,C.ochre,C.green,'#8C6A8A'][(i+j)%4],3.5); }
+    c.restore();
+  }));
+
   /* ---------- small structures ---------- */
   // photocopy shop
   add(1500,()=>{
@@ -1213,7 +1291,7 @@ const RW=960, RH=600;
 /* To add a building: add an entry here (built:true), a case in roomDef(), and its game. */
 const ROOMS={
   stock:{ n:'Stock Market', built:true, open:true },
-  canteen:{ n:'Canteen', built:false, req:'Finish a Trading Floor round in profit' },
+  canteen:{ n:'Canteen', built:true, open:true },
   playground:{ n:'Playground', built:false, req:'Unlocks after the Canteen' },
   auditorium:{ n:'Auditorium', built:false, req:'Unlocks after the Playground' },
   dream:{ n:'Dream Company', built:false, req:'Unlocks after the Auditorium' }
@@ -1227,6 +1305,19 @@ const NEWS=[['Canteen hikes chai price','CHAI'],['Campus Wi-Fi outage','WIFI'],[
 const NEWSD={'Canteen hikes chai price':.15,'Campus Wi-Fi outage':-.14,'Free pens at Dream Company':-.12,'Chai cart wins an award':.13,'Fibre line installed':.16,'Pen shortage in Admin':.15,'Exam week caffeine panic':.12,'Router meltdown':-.15};
 
 function roomDef(id){
+  if(id==='canteen') return {
+    name:'Canteen',
+    solids:[[55,300,120,88],[270,310,150,52],[540,310,150,52],[760,300,145,88],[90,450,180,48],[390,430,180,52],[690,450,180,48]],
+    objs:[
+      {id:'chaiCounter',x:480,y:280,r:78,z:[350,245,260,78],label:'Order a chai',fn:()=>{ S.chai++; S.karma+=2; hud(); save(); toast('Chai served. Cup '+S.chai+'. +2 karma.',2800); }},
+      {id:'menu',x:160,y:270,r:64,z:[80,220,160,74],label:'Read the menu',fn:()=>toast('Chai Rs. 10 · Samosa Rs. 20 · Maggi Rs. 40 · Opinions: free.',3400)},
+      {id:'jukebox',x:800,y:230,r:60,z:[755,165,90,90],label:'Play a song',fn:()=>toast(pick(['Old Bollywood. The whole room sings along.','Indie hour. Someone claims it is their song.','A throwback. Three tables start tapping in sync.']),3200)},
+      {id:'table',x:480,y:470,r:90,z:[390,430,180,52],label:'Join a table',fn:()=>{ S.karma+=1; hud(); save(); toast('You join a table. Conversation starts with: “Which society are you in?” +1 karma.',3200); }},
+      {id:'door',x:480,y:578,r:56,z:[430,556,100,44],label:'Leave',fn:()=>exitRoom()}
+    ],
+    npcs:[['Kabir',235,475,['Canteen first, deadlines later.','Extra chutney?']],['Zoya',700,405,['Chai?','I know a shortcut to the good samosas.']],['Rohan',820,520,['I came for the free chai.','This table has the best Wi-Fi.']],['Tara',330,515,['Wait, which block is this?','Meet me here after class.']]],
+    build:buildCanteenBG
+  };
   if(id==='stock') return {
     name:'Stock Market',
     solids:[[90,318,92,74],[395,288,170,64],[250,362,150,56],[560,362,150,56],[770,408,130,42],[44,262,34,34],[882,262,34,34]],
@@ -1249,6 +1340,39 @@ function bullArt(c,x,y){
   c.beginPath(); c.moveTo(x-34,y-22); c.quadraticCurveTo(x-47,y-18,x-44,y-3); c.stroke();
   c.fillStyle=C.ink; c.beginPath(); c.arc(x+36,y-28,1.5,0,PI2); c.fill();
 }
+function buildCanteenBG(){
+  const k=2, cv=document.createElement('canvas'); cv.width=RW*k; cv.height=RH*k; const c=cv.getContext('2d'); c.scale(k,k); c.lineJoin='round'; c.lineCap='round';
+  const R=(x,y,w,h,f,s,lw)=>{ c.fillStyle=f; c.fillRect(x,y,w,h); if(s){ c.strokeStyle=s; c.lineWidth=lw||1.6; c.strokeRect(x,y,w,h); } };
+  const shadow=(x,y,w)=>{ c.fillStyle='rgba(40,34,24,.2)'; c.beginPath(); c.ellipse(x,y,w,7,0,0,PI2); c.fill(); };
+  // warm wall + tiled floor
+  R(0,0,RW,235,'#C8B69B'); R(0,174,RW,62,'#A98E70'); R(0,232,RW,5,C.ink);
+  for(let y=237,j=0;y<RH;y+=38,j++) for(let x=0,i=0;x<RW;x+=38,i++){ R(x,y,38,38,(i+j)%2?'#D9CFBA':'#C8BDA6',null); }
+  c.strokeStyle='rgba(31,30,28,.08)'; c.lineWidth=1; for(let y=237;y<RH;y+=38){ c.beginPath(); c.moveTo(0,y); c.lineTo(RW,y); c.stroke(); }
+  // windows + festive bunting
+  [[74,70],[824,70]].forEach(([x,y])=>{ R(x,y,62,106,'#8FA7A0',C.ink,1.8); c.beginPath(); c.moveTo(x+31,y); c.lineTo(x+31,y+106); c.moveTo(x,y+52); c.lineTo(x+62,y+52); c.strokeStyle=C.ink; c.lineWidth=1.3; c.stroke(); });
+  for(let i=0;i<11;i++){ const x=180+i*60; c.fillStyle=[C.red,C.ochre,C.green,'#8C6A8A'][i%4]; c.beginPath(); c.moveTo(x,150); c.lineTo(x+20,150); c.lineTo(x+10,174); c.closePath(); c.fill(); c.strokeStyle=C.ink; c.lineWidth=1; c.stroke(); }
+  // service counter
+  shadow(480,340,150); R(350,250,260,76,'#7A5A3A',C.ink,2); R(350,242,260,12,'#A28A68',C.ink,1.5); R(370,266,78,42,'#2A2A28',C.ink,1.4); R(462,266,68,42,'#CFC6B2',C.ink,1.2); R(544,266,48,42,'#8FA7A0',C.ink,1.2);
+  c.fillStyle=C.ochre; c.font='700 13px "IBM Plex Mono",monospace'; c.textAlign='center'; c.textBaseline='middle'; c.fillText('CANTEEN',480,327);
+  // menu board
+  R(80,220,160,74,'#2F3A3F',C.ink,1.8); c.fillStyle=C.paper; c.font='600 9px "IBM Plex Mono",monospace'; c.textAlign='left'; ['CHAI   10','SAMOSA 20','MAGGI   40','PARATHA 30'].forEach((t,i)=>c.fillText(t,94,238+i*14));
+  // tea urn + cups
+  R(405,207,54,32,'#BDB39C',C.ink,1.5); c.beginPath(); c.arc(432,206,18,Math.PI,PI2); c.stroke(); c.fillStyle=C.ochre; c.fillRect(424,216,16,8);
+  for(let i=0;i<4;i++){ R(474+i*16,211,11,10,'#E6DECB',C.ink,1); }
+  // jukebox
+  R(752,166,92,90,'#8C6A8A',C.ink,1.8); c.beginPath(); c.arc(798,184,28,Math.PI,PI2); c.fillStyle='#B58A3A'; c.fill(); c.strokeStyle=C.ink; c.stroke(); R(770,208,56,34,'#2F3A3F',C.ink,1.2); c.fillStyle=C.paper; c.font='600 8px "IBM Plex Mono",monospace'; c.fillText('PLAYLIST',778,224);
+  // tables + chairs
+  [[90,450,180,48],[390,430,180,52],[690,450,180,48]].forEach(([x,y,w,h],i)=>{ shadow(x+w/2,y+h+8,w*.42); R(x,y,w,h,'#7E6A52',C.ink,1.7); R(x+8,y+8,w-16,8,'#9A8566',C.ink,1.2); [[x+15,y+h+12],[x+w-15,y+h+12]].forEach(([cx,cy])=>{ R(cx-9,cy-10,18,12,'#8A7458',C.ink,1.1); }); });
+  // wall posters
+  R(280,54,130,72,C.paper,C.ink,1.5); c.fillStyle=C.red; c.font='700 13px "Instrument Serif",serif'; c.fillText('CHAI >',300,80); c.fillText('ATTENDANCE',300,99);
+  R(510,54,150,72,'#F2ECDC',C.ink,1.5); c.fillStyle=C.greenD; c.font='600 10px "IBM Plex Mono",monospace'; c.fillText('TABLE FOR',526,78); c.fillText('GOOD PEOPLE',526,96);
+  // steam
+  c.strokeStyle='rgba(233,226,209,.8)'; c.lineWidth=1.4; for(let i=0;i<4;i++){ c.beginPath(); c.moveTo(390+i*24,220); c.quadraticCurveTo(384+i*24,207,392+i*24,198); c.quadraticCurveTo(400+i*24,189,394+i*24,180); c.stroke(); }
+  // exit mat
+  R(430,560,100,36,'#7A5A3A',C.ink,1.6); c.fillStyle=C.paper; c.font='600 10px "IBM Plex Mono",monospace'; c.fillText('EXIT',480,579);
+  return cv;
+}
+
 function buildStockBG(){
   const k=2, cv=document.createElement('canvas'); cv.width=RW*k; cv.height=RH*k; const c=cv.getContext('2d'); c.scale(k,k); c.lineJoin='round'; c.lineCap='round';
   const R=(x,y,w,h,f,s,lw)=>{ c.fillStyle=f; c.fillRect(x,y,w,h); if(s){ c.strokeStyle=s; c.lineWidth=lw||1.6; c.strokeRect(x,y,w,h); } };
@@ -1309,7 +1433,7 @@ function enterRoom(id){
   Object.assign(ROOM.p,{x:480,y:520,face:1,moving:false});
   ROOM.npcs=def.npcs.map(([nm,x,y,lines],i)=>{ const src=NPCS.find(n=>n.name===nm)||NPCS[i]; return {name:nm,look:Object.assign({},src.look,{name:nm}),bx:x,by:y,ph:i*2.1,x,y,face:1,moving:false,lines,bubble:null,say:2+i*2,seed:i*1.7}; });
   $('#roomName').textContent=def.name+' \u00b7 inside'; $('#room').classList.add('on'); $('#app').classList.add('inroom'); $('#prompt').dataset.t='';
-  toast('Inside the '+def.name+'. Walk to the terminal in the middle and press E.',4200);
+  toast('Inside the '+def.name+'. Walk around, meet students and press E near highlighted spots.',4200);
 }
 function exitRoom(){
   if(!ROOM.on) return; ROOM.on=false; $('#room').classList.remove('on'); $('#app').classList.remove('inroom'); closeSheet(); $('#toast').classList.remove('on'); $('#prompt').dataset.t=''; for(const k in keys) keys[k]=false;
