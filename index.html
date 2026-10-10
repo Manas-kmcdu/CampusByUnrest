@@ -1,3 +1,4 @@
+<!-- Campus by Unrest v4: multiplayer, queue, verification, working lights; merged onto live v2 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Unrest Campus</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -179,6 +180,53 @@ button,input{font:inherit;color:inherit}
 .tg-row{display:grid;grid-template-columns:56px 1fr 74px auto auto;gap:8px;align-items:center;border-top:1px dashed var(--ink-2);padding:7px 0}
 .tg-row .btn{padding:6px 9px}
 .tg-up{color:#4F6249}.tg-dn{color:var(--red)}
+/* ---- multiplayer + lights ---- */
+button.chip{cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;border-radius:0}
+button.chip:hover{background:var(--paper-2)}
+button.chip:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+#mpChip{gap:6px}
+#mpChip i{width:8px;height:8px;border-radius:50%;background:var(--ink-2);display:inline-block}
+#mpChip.live i{background:#4F8A4B;box-shadow:0 0 0 3px rgba(79,138,75,.25)}
+#mpChip.wait i{background:var(--ochre);box-shadow:0 0 0 3px rgba(201,155,64,.3)}
+#qbar{flex-basis:100%;display:none;justify-content:center;pointer-events:none}
+#qbar.on{display:flex}
+#qbar>div{pointer-events:auto;background:var(--ink);color:var(--paper);padding:8px 10px 8px 14px;display:flex;gap:12px;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;box-shadow:3px 3px 0 rgba(31,30,28,.35);max-width:100%}
+#qbar .btn{padding:4px 8px;font-size:10px;box-shadow:none;color:var(--ink)}
+.mp-stats{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 4px}
+.mp-stats span{border:1.5px solid var(--ink);background:#F2ECDC;padding:5px 10px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.mp-stats b{font-weight:600}
+.mp-seg{display:flex;margin:16px 0 12px}
+.mp-seg button{flex:1;border:1.5px solid var(--ink);background:var(--paper);padding:9px 8px;cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-radius:0;margin-left:-1.5px}
+.mp-seg button:first-child{margin-left:0}
+.mp-seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.mp-f{display:flex;flex-direction:column;gap:5px;margin:0 0 10px}
+.mp-f label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+.mp-f input[type=text]{border:1.5px solid var(--ink);background:#F8F4E8;padding:9px;border-radius:0;width:100%}
+.mp-f input[type=file]{border:1.5px dashed var(--ink);background:#F8F4E8;padding:10px;width:100%;font-size:12px}
+.mp-prev{max-width:100%;max-height:150px;border:1.5px solid var(--ink);display:none;margin-top:6px;align-self:flex-start}
+.mp-note{font-size:12px;line-height:1.5;color:var(--ink-2);margin:8px 0}
+.mp-note a{color:var(--red);font-weight:600}
+.mp-state{border-left:3px solid var(--red);padding:6px 0 6px 12px;margin:14px 0;line-height:1.5}
+.mp-state.ok{border-color:#4F8A4B}
+.mp-rev{border:1.5px solid var(--ink);background:#F2ECDC;padding:10px;margin:8px 0;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.mp-rev img{width:120px;max-height:80px;object-fit:cover;border:1px solid var(--ink)}
+.mp-rev div{min-width:0;flex:1;font-size:12px;line-height:1.45}
+.mp-rev .btn{padding:6px 9px}
+.mp-err{color:var(--red);font-size:12px;min-height:16px;margin:4px 0}
+@media (max-width:560px){
+  #qbar>div{font-size:10px;gap:8px;padding:7px 8px 7px 10px}
+  .mp-rev img{width:100%;max-height:140px}
+  .mp-stats span{font-size:10px;padding:4px 7px}
+}
+
+.mp-modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.mp-mode{border:1.5px solid var(--ink);background:#F2ECDC;padding:14px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.mp-mode.sel{box-shadow:4px 4px 0 var(--ink);background:#F8F2E2}
+.mp-mode b{font-family:var(--display);font-weight:400;font-size:28px;line-height:1}
+.mp-mode .mp-stats b{font-family:var(--mono);font-size:11px;font-weight:600}
+.mp-mode p{margin:0;line-height:1.5;font-size:13px}
+.mp-mode .btn{margin-top:auto}
+@media (max-width:560px){.mp-modes{grid-template-columns:1fr}}
 </style>
 
 <div id="app">
@@ -192,7 +240,8 @@ button,input{font:inherit;color:inherit}
       <div class="mono">Unrest University &middot; Delhi</div>
     </div>
     <div class="tools">
-      <div class="chip mono" title="Campus time"><span id="clock">8:30 AM</span></div>
+      <button class="chip mono" id="clockChip" type="button" title="Tap to skip ahead in time"><span id="clock">8:30 AM</span></button>
+      <button class="chip mono" id="mpChip" type="button" title="Multiplayer"><i></i><span>Solo</span></button>
       <div class="chip mono" title="Karma points"><span>Karma</span><b id="karma">0</b></div>
       <div class="chip mono" title="Torn notes found"><span>Notes</span><b id="notes">0/3</b></div>
       <button class="btn" id="bPlaces" type="button">Places</button>
@@ -200,6 +249,7 @@ button,input{font:inherit;color:inherit}
       <button class="btn" id="bLook" type="button">Look</button>
       <button class="btn" id="bHelp" type="button">?</button>
     </div>
+    <div id="qbar"><div></div></div>
   </div>
 
   <button id="prompt" type="button" hidden></button>
@@ -230,7 +280,7 @@ button,input{font:inherit;color:inherit}
         <div class="mono" style="color:var(--red)">A student-built campus world</div>
         <h1>Campus<br>by Un<i>rest</i></h1>
         <p>Your college, as a place you can walk around. Cross the quad, find the canteen, meet other students and look for the room nobody talks about.</p>
-        <p class="fine">Fictional campus prototype: Unrest University. Move with WASD or arrow keys, or click anywhere to walk.</p>
+        <p class="fine">Fictional campus prototype: Unrest University. Move with WASD or arrow keys, or click anywhere to walk. Solo play is free. Multiplayer is for verified students.</p>
       </div>
       <div class="id" id="idcard">
         <div class="head"><span class="mono">Unrest University</span><span class="mono" id="idno">Student ID &middot; 2026-0001</span></div>
@@ -444,6 +494,7 @@ const EMOTES = ['✦','☺','♥','?','♪'];
 const TIPS = { greet:['Hey!','Hi there.','Oh, hello.','New face!','Welcome to Unrest.'] };
 /* ===== Static world painter ===== */
 let worldCanvas = null, worldS = 1;
+const LIGHTS = [];
 const TREES = [];
 const SPINE = new Set(['N0|N1','N1|N2','N2|Q4','Q0|T']);
 const RING = new Set(['Q0|Q1','Q1|Q2','Q2|Q3','Q3|Q4','Q4|Q5','Q5|Q6','Q6|Q7','Q7|Q0']);
@@ -462,10 +513,10 @@ function blockedAt(x,y,pad){
 }
 
 function buildWorld(Sx){
-  const S = Sx || Math.min(1.35, Math.max(1, window.devicePixelRatio || 1)); worldS = S;
+  const S = Sx || Math.min(matchMedia('(pointer:coarse)').matches?1.15:1.35, Math.max(1, window.devicePixelRatio || 1)); worldS = S;
   const cv = document.createElement('canvas'); cv.width = Math.round(W*S); cv.height = Math.round(H*S);
   const c = cv.getContext('2d'); c.scale(S,S); c.lineJoin='round'; c.lineCap='round';
-  const r = rng(11);
+  LIGHTS.length = 0; const r = rng(11);
   const J = a => (r()-.5)*a;
   const items = []; const add = (y,fn) => items.push([y,fn]);
   TREES.length = 0;
@@ -517,7 +568,7 @@ function buildWorld(Sx){
   function backpack(x,y,col){ c.fillStyle='rgba(40,34,24,.2)'; c.beginPath(); c.ellipse(x+1,y+7,9,3,0,0,PI2); c.fill(); rr(c,x-7,y-8,14,15,4,col,C.ink,1.2); rr(c,x-4.5,y-1,9,6,2,shade(col,.8),C.ink,1); c.strokeStyle=C.ink; c.lineWidth=1.2; c.beginPath(); c.arc(x,y-8,3.4,Math.PI,PI2); c.stroke(); }
   function books(x,y,n){ for(let i=0;i<(n||3);i++){ const w=14+r()*6; rr(c,x-w/2+J(3),y-i*5,w,5,1,PAL[(r()*PAL.length)|0],C.ink,1); } }
   function bench(x,y,col){ c.fillStyle='rgba(40,34,24,.2)'; c.beginPath(); c.ellipse(x+3,y+12,28,5,0,0,PI2); c.fill(); sRect(x-26,y-6,52,10,col||'#8A7458',C.ink,1.3,.6); sRect(x-26,y-16,52,6,col||'#8A7458',C.ink,1.2,.5); sRect(x-24,y+4,5,9,C.ink2); sRect(x+19,y+4,5,9,C.ink2); }
-  function lamp(x,y){ c.fillStyle='rgba(40,34,24,.2)'; c.beginPath(); c.ellipse(x+4,y+2,7,3,0,0,PI2); c.fill(); sLine(x,y,x,y-36,C.ink,2.2); dot(x,y-40,5,C.ochre,C.ink); }
+  function lamp(x,y){ c.fillStyle='rgba(40,34,24,.2)'; c.beginPath(); c.ellipse(x+4,y+2,7,3,0,0,PI2); c.fill(); sLine(x,y,x,y-36,C.ink,2.2); dot(x,y-40,5,C.ochre,C.ink); LIGHTS.push({x:x,y:y-40,g:y+2,k:'lamp'}); }
   function noticeBoard(x,y,w,h,n){
     c.fillStyle='rgba(40,34,24,.2)'; c.beginPath(); c.ellipse(x+4,y+2,w/2,4,0,0,PI2); c.fill();
     sLine(x-w/3,y,x-w/3,y-h*.35,C.ink2,2.4); sLine(x+w/3,y,x+w/3,y-h*.35,C.ink2,2.4);
@@ -587,12 +638,12 @@ function buildWorld(Sx){
     hatch(x,y+h-wh,w,wh,C.ink,7,.07);
     return wh;
   }
-  function door(l,col,wd){ wd=wd||32; const dx=l.door[0]; sRect(dx-wd/2,l.y+l.h-48,wd,48,col||'#3B2B22',C.ink,1.6,.8); sLine(dx,l.y+l.h-48,dx,l.y+l.h,C.ink,1.2); dot(dx-6,l.y+l.h-22,1.8,C.ochre); dot(dx+6,l.y+l.h-22,1.8,C.ochre); sRect(dx-wd/2-6,l.y+l.h-3,wd+12,6,C.stone,C.ink,1.2,.6); }
+  function door(l,col,wd){ wd=wd||32; const dx=l.door[0]; LIGHTS.push({x:dx,y:l.y+l.h-18,k:'door'}); sRect(dx-wd/2,l.y+l.h-48,wd,48,col||'#3B2B22',C.ink,1.6,.8); sLine(dx,l.y+l.h-48,dx,l.y+l.h,C.ink,1.2); dot(dx-6,l.y+l.h-22,1.8,C.ochre); dot(dx+6,l.y+l.h-22,1.8,C.ochre); sRect(dx-wd/2-6,l.y+l.h-3,wd+12,6,C.stone,C.ink,1.2,.6); }
   function windows(l,wh,cols,rows,o){
     o=o||{}; const x0=l.x+16, span=l.w-32, sp=span/cols, wy=l.y+l.h-wh+(o.top||16), wwid=o.w||20, whg=o.h||22, rg=o.rg||32;
     for(let rI=0;rI<rows;rI++) for(let i=0;i<cols;i++){
       const cx=x0+sp*(i+.5); if(!o.noSkip && Math.abs(cx-l.door[0])<(o.skip||30) && rI===rows-1) continue;
-      const yy=wy+rI*rg;
+      const yy=wy+rI*rg; LIGHTS.push({x:cx,y:yy+whg/2,w:wwid,h:whg,k:'win',on:(Math.abs((cx*13+yy*7)|0))%5!==0});
       if(o.arch){ c.beginPath(); c.moveTo(cx-wwid/2,yy+whg); c.lineTo(cx-wwid/2,yy+6); c.arc(cx,yy+6,wwid/2,Math.PI,PI2); c.lineTo(cx+wwid/2,yy+whg); c.closePath(); c.fillStyle=o.glass||'#8FA7A0'; c.fill(); c.strokeStyle=C.ink; c.lineWidth=1.4; c.stroke(); }
       else sRect(cx-wwid/2,yy,wwid,whg,o.glass||'#8FA7A0',C.ink,1.4,.8);
       c.strokeStyle='rgba(31,30,28,.55)'; c.lineWidth=1; c.beginPath(); c.moveTo(cx,yy+(o.arch?0:2)); c.lineTo(cx,yy+whg); c.moveTo(cx-wwid/2,yy+whg*.55); c.lineTo(cx+wwid/2,yy+whg*.55); c.stroke();
@@ -602,7 +653,7 @@ function buildWorld(Sx){
   function columns(cxs,y1,y2,wd){ cxs.forEach(cx=>{ sRect(cx-wd/2,y1,wd,y2-y1,C.paper,C.ink,1.4,.6); sRect(cx-wd/2-2,y1,wd+4,5,C.paper2,C.ink,1,.5); sRect(cx-wd/2-2,y2-5,wd+4,5,C.paper2,C.ink,1,.5); }); }
   function stepsAt(cx,y,w,n){ for(let i=0;i<n;i++) sRect(cx-w/2-i*6,y+i*6,w+i*12,7,C.stone,C.ink,1.1,.5); }
   function bunting(x1,x2,y,sag,n){ c.strokeStyle=C.ink; c.lineWidth=1.2; c.beginPath(); c.moveTo(x1,y); c.quadraticCurveTo((x1+x2)/2,y+sag,x2,y); c.stroke(); for(let i=0;i<n;i++){ const t=(i+.5)/n, px=x1+t*(x2-x1), py=y+sag*2*t*(1-t); c.beginPath(); c.moveTo(px-6,py); c.lineTo(px+6,py); c.lineTo(px,py+12); c.closePath(); c.fillStyle=[C.red,C.ochre,C.green,C.paper][i%4]; c.fill(); c.stroke(); } }
-  function stringLights(x1,x2,y,sag,n){ c.strokeStyle='rgba(31,30,28,.75)'; c.lineWidth=1.1; c.beginPath(); c.moveTo(x1,y); c.quadraticCurveTo((x1+x2)/2,y+sag,x2,y); c.stroke(); for(let i=0;i<n;i++){ const t=(i+.5)/n, px=x1+t*(x2-x1), py=y+sag*2*t*(1-t); dot(px,py+3,2.6,C.ochre,C.ink); c.fillStyle='rgba(201,155,64,.28)'; c.beginPath(); c.arc(px,py+3,8,0,PI2); c.fill(); } }
+  function stringLights(x1,x2,y,sag,n){ c.strokeStyle='rgba(31,30,28,.75)'; c.lineWidth=1.1; c.beginPath(); c.moveTo(x1,y); c.quadraticCurveTo((x1+x2)/2,y+sag,x2,y); c.stroke(); for(let i=0;i<n;i++){ const t=(i+.5)/n, px=x1+t*(x2-x1), py=y+sag*2*t*(1-t); dot(px,py+3,2.6,C.ochre,C.ink); LIGHTS.push({x:px,y:py+3,k:'bulb',col:C.ochre}); c.fillStyle='rgba(201,155,64,.28)'; c.beginPath(); c.arc(px,py+3,8,0,PI2); c.fill(); } }
   function bull(x,y){ c.save(); c.translate(x,y); c.fillStyle='rgba(40,34,24,.22)'; c.beginPath(); c.ellipse(4,8,26,6,0,0,PI2); c.fill(); sRect(-22,-4,44,12,C.stone,C.ink,1.4,.6); const br='#8B6B3F'; c.fillStyle=br; c.strokeStyle=C.ink; c.lineWidth=1.3; c.beginPath(); c.ellipse(0,-18,17,10,0,0,PI2); c.fill(); c.stroke(); c.beginPath(); c.ellipse(-16,-22,8,6,-.3,0,PI2); c.fill(); c.stroke(); sRect(-12,-12,5,9,br,C.ink,1,.3); sRect(8,-12,5,9,br,C.ink,1,.3); c.strokeStyle=C.ink; c.lineWidth=1.6; c.beginPath(); c.moveTo(-20,-28); c.lineTo(-24,-34); c.moveTo(-14,-29); c.lineTo(-12,-35); c.stroke(); c.restore(); }
   function easel(x,y,kind){ sLine(x-18,y,x-8,y-46,C.ink2,2.2); sLine(x+18,y,x+8,y-46,C.ink2,2.2); sRect(x-24,y-70,48,36,C.paper,C.ink,1.5,.7); c.strokeStyle='rgba(31,30,28,.7)'; c.lineWidth=1.4; c.beginPath(); if(kind==='bars'){ [0,1,2,3].forEach(i=>{ c.moveTo(x-16+i*10,y-38); c.lineTo(x-16+i*10,y-40-i*5-J(4)); }); c.stroke(); [0,1,2,3].forEach(i=>{ c.fillStyle=i%2?C.green:C.red; c.fillRect(x-19+i*10,y-40-i*5,6,i*5+4); }); } else { c.moveTo(x-16,y-44); c.quadraticCurveTo(x-6,y-60,x+4,y-46); c.quadraticCurveTo(x+10,y-40,x+16,y-52); c.stroke(); } }
   function clockFace(x,y,rad){ dot(x,y,rad,C.paper,C.ink); c.strokeStyle=C.ink; c.lineWidth=1.6; c.beginPath(); c.moveTo(x,y); c.lineTo(x,y-rad*.7); c.moveTo(x,y); c.lineTo(x+rad*.5,y+rad*.2); c.stroke(); for(let i=0;i<12;i++){ const a=i/12*PI2; c.beginPath(); c.moveTo(x+Math.cos(a)*rad*.82,y+Math.sin(a)*rad*.82); c.lineTo(x+Math.cos(a)*rad*.94,y+Math.sin(a)*rad*.94); c.stroke(); } }
@@ -831,13 +882,13 @@ function buildWorld(Sx){
   ['library','admin','auditorium','stock','dream','class','society','canteen','playground','mystery'].forEach(id=>{ const l=LOC[id]; add(l.y+l.h,()=>draw[id](l)); });
 
   /* ---------- festive season: road lights + campus decorations ---------- */
-  function festBulb(x,y,col,size){
+  function festBulb(x,y,col,size,skip){ if(!skip) LIGHTS.push({x:x,y:y,k:'bulb',col:col});
     c.save(); c.shadowColor='rgba(255,220,130,.65)'; c.shadowBlur=10; dot(x,y,size||4,col,C.ink); c.restore();
   }
   function festLamp(x,y,flip){
     c.save(); c.strokeStyle=C.ink2; c.lineWidth=2; c.beginPath(); c.moveTo(x,y+24); c.lineTo(x,y-26); c.stroke();
     c.strokeStyle=C.ink; c.lineWidth=1.4; c.beginPath(); c.arc(x+(flip?-7:7),y-26,7,Math.PI,PI2); c.stroke();
-    festBulb(x+(flip?-7:7),y-31,C.ochre,4.2); c.restore();
+    festBulb(x+(flip?-7:7),y-31,C.ochre,4.2,true); LIGHTS.push({x:x+(flip?-7:7),y:y-31,g:y+22,k:'lamp'}); c.restore();
   }
   function festString(x1,y1,x2,y2,n){
     c.save(); c.strokeStyle='rgba(31,30,28,.58)'; c.lineWidth=1.2; c.beginPath(); c.moveTo(x1,y1); c.quadraticCurveTo((x1+x2)/2,(y1+y2)/2+16,x2,y2); c.stroke();
@@ -1102,8 +1153,8 @@ $('#panel').addEventListener('click',e=>{ const b=e.target.closest('button'); if
 
 /* Sheets */
 const sheet=$('#sheet'), sheetCard=$('#sheetCard');
-function openSheet(html){ sheetCard.innerHTML='<button class="btn close" type="button" data-close>Close</button>'+html; sheet.classList.add('on'); }
-function closeSheet(){ sheet.classList.remove('on'); }
+function openSheet(html){ sheetCard.dataset.mp=''; sheetCard.innerHTML='<button class="btn close" type="button" data-close>Close</button>'+html; sheet.classList.add('on'); }
+function closeSheet(){ sheet.classList.remove('on'); sheetCard.dataset.mp=''; }
 sheet.addEventListener('click',e=>{ if(e.target===sheet||e.target.closest('[data-close]')){ closeSheet(); return; } const r=e.target.closest('[data-loc]'); if(r){ const id=r.dataset.loc; closeSheet(); openPanel(id); walkToLoc(id); } });
 function rowHTML(l){ const v=S.visited[l.id]; return '<button class="row" type="button" data-loc="'+l.id+'"><div class="stamp '+(v?'':'off')+'">'+(v?'Seen':'?')+'</div><span><strong>'+(l.id==='mystery'&&!S.unlocked?'Hidden Room':l.n)+'</strong><small>'+(v?'Stamped':'Unvisited')+'</small></span></button>'; }
 function placesSheet(){ openSheet('<h2>Places</h2><div class="mono" style="color:var(--ink-2)">Pick one to read about it and walk there</div><div class="grid">'+LOCS.map(rowHTML).join('')+'</div>'); }
@@ -1149,6 +1200,7 @@ addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; });
 cvs.addEventListener('wheel',e=>{ e.preventDefault(); zoomK=Math.max(.6,Math.min(1.7,zoomK*(e.deltaY<0?1.08:.926))); },{passive:false});
 function toWorld(ev){ const r=cvs.getBoundingClientRect(); return [camX+(ev.clientX-r.left)/zoom, camY+(ev.clientY-r.top)/zoom]; }
 function hitTest(wx,wy){
+  const pp=mpHit(wx,wy); if(pp) return {t:'peer',v:pp};
   for(const n of NPCS) if(Math.abs(wx-n.x)<20&&wy>n.y-56&&wy<n.y+6) return {t:'npc',v:n};
   for(const o of OBJS) if(Math.hypot(wx-o.x,wy-o.y)<(o.id==='fountain'?56:30)) return {t:'obj',v:o};
   for(let i=LOCS.length-1;i>=0;i--){ const l=LOCS[i]; if(l.id==='gate'||l.id==='quad'&&false) {} if(wx>=l.x-6&&wx<=l.x+l.w+6&&wy>=l.y-24&&wy<=l.y+l.h+4){ if(l.id==='quad'&&hitOther(wx,wy)) continue; return {t:'loc',v:l}; } }
@@ -1159,15 +1211,16 @@ cvs.addEventListener('pointermove',e=>{ const [wx,wy]=toWorld(e); hover=hitTest(
 cvs.addEventListener('pointerleave',()=>{ hover=null; });
 cvs.addEventListener('pointerdown',e=>{
   if($('#splash').classList.contains('on')) return; const [wx,wy]=toWorld(e); const h=hitTest(wx,wy);
-  if(h&&h.t==='npc'){ const n=h.v; n.emote={g:EMOTES[0],until:tNow+1.6}; n.bubble={text:pick(TIPS.greet),until:tNow+2.6}; n.wait=Math.max(n.wait,3); toast(n.name+' · '+n.course,3000); P.path=routeTo(n.x-30,n.y+4); }
+  if(h&&h.t==='peer'){ peerSheet(h.v); }
+  else if(h&&h.t==='npc'){ const n=h.v; n.emote={g:EMOTES[0],until:tNow+1.6}; n.bubble={text:pick(TIPS.greet),until:tNow+2.6}; n.wait=Math.max(n.wait,3); toast(n.name+' · '+n.course,3000); P.path=routeTo(n.x-30,n.y+4); }
   else if(h&&h.t==='obj'){ P.path=routeTo(h.v.x,h.v.y+(h.v.id==='fountain'?96:34)); P.pendingObj=h.v; }
   else if(h&&h.t==='loc'){ openPanel(h.v.id); walkToLoc(h.v.id); }
   else { P.path=routeTo(Math.max(40,Math.min(W-40,wx)),Math.max(70,Math.min(H-30,wy))); closePanel(); }
 });
 $('#prompt').addEventListener('click',()=>interact());
-$('#chat').addEventListener('submit',e=>{ e.preventDefault(); const i=$('#say'), t=i.value.trim(); if(t){ P.bubble={text:t,until:tNow+4.5}; npcReact(); } i.value=''; i.blur(); });
+$('#chat').addEventListener('submit',e=>{ e.preventDefault(); const i=$('#say'), t=i.value.trim(); if(t){ P.bubble={text:t,until:tNow+4.5}; npcReact(); mpSay(t); } i.value=''; i.blur(); });
 $('#emotes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) doEmote(+b.dataset.e); });
-function doEmote(i){ P.emote={g:EMOTES[i],until:tNow+1.8}; npcReact(i===0); }
+function doEmote(i){ P.emote={g:EMOTES[i],until:tNow+1.8}; npcReact(i===0); mpEmote(i); }
 function npcReact(wave){ NPCS.forEach(n=>{ if(Math.hypot(n.x-P.x,n.y-P.y)<260 && Math.random()<.8){ setTimeout(()=>{ n.bubble={text:wave?'Hey, '+S.look.name+'!':pick(n.lines),until:tNow+3.2}; n.wait=Math.max(n.wait,3); },700+Math.random()*1200); } }); }
 (function joystick(){ const j=$('#joy'), k=j.querySelector('i'); let id=null; function mv(e){ const r=j.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2; let dx=e.clientX-cx, dy=e.clientY-cy; const m=Math.hypot(dx,dy), max=r.width/2-8; if(m>max){ dx*=max/m; dy*=max/m; } k.style.transform='translate('+dx+'px,'+dy+'px)'; joy.x=dx/max; joy.y=dy/max; } j.addEventListener('pointerdown',e=>{ id=e.pointerId; j.setPointerCapture(id); P.path=[]; mv(e); }); j.addEventListener('pointermove',e=>{ if(e.pointerId===id) mv(e); }); const end=e=>{ if(e.pointerId===id){ id=null; joy.x=joy.y=0; k.style.transform=''; } }; j.addEventListener('pointerup',end); j.addEventListener('pointercancel',end); })();
 
@@ -1184,7 +1237,7 @@ function interact(){ if(ROOM.on){ roomInteract(); return; } if(!current) return;
 
 /* ===== Update ===== */
 function update(dt){
-  tNow+=dt; simMin+=dt/0.8;
+  tNow+=dt; simMin+=dt/0.8; if(MP.live) simMin=mpClock();
   if(ROOM.on){ $('#clock').textContent=clockText(); return; }
   // input
   let ix=0,iy=0;
@@ -1269,15 +1322,16 @@ function render(){
   // interactables hint
   OBJS.forEach(o=>{ const d=Math.hypot(P.x-o.x,P.y-o.y); if(d<o.r+160){ const hy=o.id==='fountain'?o.y-72:o.y-62; c.fillStyle=C.red; c.strokeStyle=C.paper; c.lineWidth=2; c.beginPath(); const yy=hy+Math.sin(tNow*3)*3; c.moveTo(o.x,yy+8); c.lineTo(o.x-6,yy); c.lineTo(o.x,yy-8); c.lineTo(o.x+6,yy); c.closePath(); c.stroke(); c.fill(); } });
   // entities sorted by y
-  const ents=NPCS.map(n=>({e:n,p:false})).concat([{e:Object.assign(P,{look:S.look,seed:0}),p:true}]); ents.sort((a,b)=>a.e.y-b.e.y); ents.forEach(o=>drawEntity(c,o.e,o.p));
+  const ents=NPCS.map(n=>({e:n,p:false})).concat(mpEnts('campus')).concat([{e:Object.assign(P,{look:S.look,seed:0}),p:true}]); ents.sort((a,b)=>a.e.y-b.e.y); ents.forEach(o=>drawEntity(c,o.e,o.p));
   if(hl){ c.save(); c.font='600 12px "IBM Plex Mono",monospace'; const nm=(hl.id==='mystery'&&!S.unlocked)?'???':hl.n, tw=c.measureText(nm).width+16; c.fillStyle=C.red; rr(c,hl.x+hl.w/2-tw/2,hl.y-34,tw,20,2,C.red,C.ink,1.4); c.fillStyle=C.paper; c.textAlign='center'; c.textBaseline='middle'; c.fillText(nm,hl.x+hl.w/2,hl.y-23.5); c.restore(); }
   // tint + vignette
   c.setTransform(1,0,0,1,0,0); const tt=tint(); if(tt[3]>0.005){ c.fillStyle='rgba('+(tt[0]|0)+','+(tt[1]|0)+','+(tt[2]|0)+','+tt[3].toFixed(3)+')'; c.fillRect(0,0,cvs.width,cvs.height); }
+  drawLights(c,zoom*dpr);
   const g=c.createRadialGradient(cvs.width/2,cvs.height/2,Math.min(cvs.width,cvs.height)*.45,cvs.width/2,cvs.height/2,Math.max(cvs.width,cvs.height)*.78); g.addColorStop(0,'rgba(31,30,28,0)'); g.addColorStop(1,'rgba(31,30,28,.28)'); c.fillStyle=g; c.fillRect(0,0,cvs.width,cvs.height);
 }
 let mf=0;
 function renderMini(){
-  if((mf++)%4) return; const m=mctx, w=mini.width, h=mini.height, sx=w/W, sy=h/H;
+  if((mf++)%4||!mini.offsetParent) return; const m=mctx, w=mini.width, h=mini.height, sx=w/W, sy=h/H;
   m.clearRect(0,0,w,h); if(worldCanvas) m.drawImage(worldCanvas,0,0,w,h);
   m.fillStyle='rgba(233,226,209,.18)'; m.fillRect(0,0,w,h);
   m.fillStyle=C.ink; NPCS.forEach(n=>{ m.beginPath(); m.arc(n.x*sx,n.y*sy,2.4,0,PI2); m.fill(); });
@@ -1469,7 +1523,7 @@ function roomRender(){
   c.setTransform(dpr*sc,0,0,dpr*sc,dpr*ox,dpr*oy); c.imageSmoothingQuality='high'; c.drawImage(ROOM.bg,0,0,RW,RH);
   tickerDraw(c);
   const hl=ROOM.cur&&ROOM.cur.id!=='door'?ROOM.cur:null; if(hl){ c.save(); c.setLineDash([8,6]); c.strokeStyle=C.red; c.lineWidth=2.4; c.strokeRect(hl.z[0],hl.z[1],hl.z[2],hl.z[3]); c.restore(); }
-  const ents=ROOM.npcs.map(n=>({e:n,p:false})).concat([{e:Object.assign(ROOM.p,{look:S.look,seed:0}),p:true}]); ents.sort((a,b)=>a.e.y-b.e.y);
+  const ents=ROOM.npcs.map(n=>({e:n,p:false})).concat(mpEnts(ROOM.id)).concat([{e:Object.assign(ROOM.p,{look:S.look,seed:0}),p:true}]); ents.sort((a,b)=>a.e.y-b.e.y);
   ents.forEach(o=>{ const e=o.e; drawAvatar(c,e.x,e.y,e.look,{t:tNow+(e.seed||0),moving:e.moving,face:e.face,seed:e.seed||0}); nameTag(c,e.x,e.y,e.look.name,o.p); if(e.bubble&&e.bubble.until>tNow) bubble(c,e.x,e.y-58,e.bubble.text,null); });
 }
 function rubBull(){ if(!ROOM.luck){ ROOM.luck=true; S.karma+=1; hud(); save(); toast('You rub the bull. Your next Trading Floor round starts with Rs. 500 extra.',3600); } else toast('The bull has nothing more to give. Greed has limits.',2600); }
@@ -1516,14 +1570,331 @@ sheet.addEventListener('click',e=>{
   $('#tgC').textContent=MONEY(TG.cash); $('#tgh-'+s).textContent='Own '+TG.sh[s];
 });
 
+/* ===== Multiplayer =====
+   Solo play is free and needs nothing. Multiplayer needs a verified account (DU ID card or Unrest username).
+   Up to MP_CAP verified players share the campus; everyone else waits in a first-come queue and is let in
+   automatically when someone leaves or goes idle. Presence rides on a small transport layer so the same code
+   runs on the artifact room, a Firebase adapter (Unrest production) or a local same-browser demo. */
+const MP_CAP=100, MP_LS='unrest-campus-mp-v1', IDLE_MS=4*60*1000;
+const MP={ tr:null, kind:'', want:false, live:false, rank:-1, count:0, qlen:0, others:new Map(), liveIds:new Set(), jt:0, uid:'', status:'none', method:'', handle:'', college:'', roll:'', reason:'', nonce:'', staff:false, db:null, muted:new Set(), sent:'', sentAt:0, lastIn:Date.now(), say:null, em:null, idled:false, prevLive:false, prevQ:-1, review:[], reports:[], tab:'un', idImg:'', busy:false, err:'', lastSayAt:0, mode:'single', modeSeen:false, sig:'' };
+try{ const d=JSON.parse(localStorage.getItem(MP_LS)||'{}'); MP.status=d.status||'none'; MP.method=d.method||''; MP.handle=d.handle||''; MP.college=d.college||''; MP.roll=d.roll||''; MP.uid=d.uid||''; MP.nonce=d.nonce||''; MP.mode=d.mode==='multi'?'multi':'single'; MP.modeSeen=!!d.modeSeen; MP.muted=new Set(Array.isArray(d.muted)?d.muted:[]); }catch(e){}
+if(!MP.uid) MP.uid='u'+Math.random().toString(36).slice(2,12);
+function mpSave(){ try{ localStorage.setItem(MP_LS,JSON.stringify({status:MP.status,method:MP.method,handle:MP.handle,college:MP.college,roll:MP.roll,uid:MP.uid,nonce:MP.nonce,mode:MP.mode,modeSeen:MP.modeSeen,muted:[...MP.muted]})); }catch(e){} }
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const mpStr=(v,n)=>String(v==null?'':v).replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/g,'').slice(0,n);
+const mpClock=()=>(Date.now()/800+545)%1440;   // everyone sees the same campus time while live
+const verified=()=>MP.status==='approved'||MP.staff;
+
+/* ---------- transports ---------- */
+function mkRoomTr(room){
+  let cb=null;
+  const snap=ps=>ps.filter(p=>p.kind==='viewer'&&!p.sameTab&&p.presence&&p.presence.c).map(p=>({id:p.peer,s:p.presence.c}));
+  const un=room.onPeers(ch=>{ if(cb) cb(snap(ch.peers)); },()=>{});
+  return { kind:'room', on:f=>{ cb=f; try{ f(snap(room.peers())); }catch(e){} }, set:s=>{ try{ room.presence({c:s}).catch(()=>{}); }catch(e){} }, leave:()=>{ try{ un(); room.presence({c:null}).catch(()=>{}); }catch(e){} } };
+}
+function mkLocalTr(){
+  if(!('BroadcastChannel' in window)) return null;
+  const bc=new BroadcastChannel('unrest-campus-mp'), id='t'+Math.random().toString(36).slice(2,9), map=new Map(); let cb=null;
+  const fire=()=>{ const now=Date.now(); for(const [k,v] of map) if(now-v.t>5000) map.delete(k); if(cb) cb([...map.entries()].map(([k,v])=>({id:k,s:v.s}))); };
+  bc.onmessage=e=>{ const m=e.data; if(!m||m.id===id) return; if(m.bye) map.delete(m.id); else if(m.s) map.set(m.id,{s:m.s,t:Date.now()}); fire(); };
+  setInterval(fire,1000); addEventListener('pagehide',()=>bc.postMessage({id,bye:1}));
+  return { kind:'local', on:f=>{ cb=f; }, set:s=>{ bc.postMessage(s?{id,s}:{id,bye:1}); }, leave:()=>bc.postMessage({id,bye:1}) };
+}
+/* test hook only: window.__CAMPUS_SIM=N pre-fills the campus with N other players */
+function mkSimTr(n){
+  const bots=[]; for(let i=0;i<n;i++) bots.push({id:'bot'+i,s:{v:1,u:'bot'+i,n:'Bot '+(i+1),lk:[i%6,i%8,i%5,i%6,i%7,i%4,i%3,i%6,i%4],x:1500+(i%20)*40,y:1000+((i/20)|0)*40,f:1,m:0,sc:'campus',jt:1000+i,w:1,ok:'du'}});
+  let cb=null; window.__campusSim={ bots, fire:()=>cb&&cb(bots.slice()) };
+  return { kind:'sim', on:f=>{ cb=f; setTimeout(()=>f(bots.slice()),30); setInterval(()=>f(bots.slice()),1000); }, set:()=>{}, leave:()=>{} };
+}
+async function mpOpenTr(){
+  if(window.__CAMPUS_SIM) return mkSimTr(window.__CAMPUS_SIM);
+  try{ if(window.claude&&claude.use){ const room=await claude.use('room'); if(room) return mkRoomTr(room); } }catch(e){}
+  return mkLocalTr();
+}
+
+/* ---------- state in / out ---------- */
+const MP_LEN=()=>[SKIN.length,OPT.hair.length,HAIRC.length,OPT.outfit.length,OUTC.length,SHOEC.length,OPT.bag.length,OPT.acc.length,OPT.merch.length];
+function mpState(){
+  const inR=ROOM.on, p=inR?ROOM.p:P, L=S.look;
+  return { v:1, u:MP.uid, n:mpStr(L.name,14)||'Student', lk:[L.skin,L.hair,L.hairc,L.outfit,L.outc,L.shoe,L.bag,L.acc,L.merch], x:Math.round(p.x), y:Math.round(p.y), f:p.face>0?1:-1, m:p.moving?1:0, sc:inR?ROOM.id:'campus', jt:MP.jt, w:MP.want?1:0, ok:MP.staff?'staff':MP.method, sy:MP.say, em:MP.em };
+}
+function mpClean(s){
+  if(!s||typeof s!=='object'||s.v!==1||!Array.isArray(s.lk)) return null;
+  const len=MP_LEN(), lk=len.map((n,i)=>Math.max(0,Math.min(n-1,(+s.lk[i])|0)));
+  const num=(v,a,b)=>Math.max(a,Math.min(b,+v||0));
+  const o={ u:mpStr(s.u,40), n:mpStr(s.n,14)||'Student', lk, x:num(s.x,0,W), y:num(s.y,0,H), f:s.f<0?-1:1, m:s.m?1:0, sc:mpStr(s.sc,16), jt:num(s.jt,0,Date.now()+5000), w:s.w?1:0, ok:mpStr(s.ok,8), sy:null, em:null };
+  if(s.sy&&typeof s.sy==='object'&&s.sy.t) o.sy={t:mpStr(s.sy.t,60),ts:+s.sy.ts||0};
+  if(s.em&&typeof s.em==='object') o.em={i:Math.max(0,Math.min(4,(+s.em.i)|0)),ts:+s.em.ts||0};
+  return o;
+}
+function mpIngest(list){
+  const seen=new Set();
+  for(const it of list){
+    const s=mpClean(it.s); if(!s) continue; seen.add(it.id);
+    let o=MP.others.get(it.id);
+    if(!o){ let h=0; for(const ch of it.id) h=(h*31+ch.charCodeAt(0))|0; o={id:it.id,dx:s.x,dy:s.y,bubble:null,emote:null,lastSay:0,lastEm:0,seed:Math.abs(h%97)/7,ent:{x:s.x,y:s.y,face:1,moving:false,seed:0,look:null,bubble:null,emote:null}}; MP.others.set(it.id,o); o.lastSay=s.sy?s.sy.ts:0; o.lastEm=s.em?s.em.ts:0; }
+    if(o.s&&o.s.sc!==s.sc){ o.dx=s.x; o.dy=s.y; }
+    o.s=s; o.look=Object.assign({name:s.n},{skin:s.lk[0],hair:s.lk[1],hairc:s.lk[2],outfit:s.lk[3],outc:s.lk[4],shoe:s.lk[5],bag:s.lk[6],acc:s.lk[7],merch:s.lk[8]});
+    o.ent.look=o.look;
+    if(s.sy&&s.sy.ts!==o.lastSay){ o.lastSay=s.sy.ts; if(Date.now()-s.sy.ts<9000) o.bubble={text:s.sy.t,until:tNow+4.5}; }
+    if(s.em&&s.em.ts!==o.lastEm){ o.lastEm=s.em.ts; if(Date.now()-s.em.ts<9000) o.emote={g:EMOTES[s.em.i],until:tNow+1.8}; }
+  }
+  for(const k of [...MP.others.keys()]) if(!seen.has(k)) MP.others.delete(k);
+  mpCompute();
+}
+/* Admission: everyone who wants multiplayer is sorted by join time (id breaks ties). The first MP_CAP are in,
+   the rest queue. Each client computes this from the same presence data, so when someone leaves or idles out,
+   the next in line is admitted without a server round trip. */
+function mpCompute(){
+  const all=[]; MP.others.forEach(o=>{ if(o.s&&o.s.w) all.push({id:o.id,jt:o.s.jt}); });
+  if(MP.want) all.push({id:'me',jt:MP.jt});
+  all.sort((a,b)=>a.jt-b.jt||(a.id<b.id?-1:1));
+  const idx=all.findIndex(a=>a.id==='me');
+  MP.rank=idx; MP.live=MP.want&&idx>=0&&idx<MP_CAP;
+  MP.liveIds=new Set(all.slice(0,MP_CAP).map(a=>a.id)); MP.count=Math.min(all.length,MP_CAP); MP.qlen=Math.max(0,all.length-MP_CAP);
+  const q=MP.want&&!MP.live?idx-MP_CAP+1:0;
+  if(MP.live&&!MP.prevLive){ toast('You are in. '+MP.count+' of '+MP_CAP+' on campus. Say hi.',3600); try{ navigator.vibrate&&navigator.vibrate(60); }catch(e){} }
+  else if(MP.want&&!MP.live&&q!==MP.prevQ&&MP.prevQ!==-1&&q<MP.prevQ) toast('Queue moved. You are #'+q+'.',2200);
+  else if(MP.want&&!MP.live&&MP.prevQ===-1) toast('Campus is full ('+MP_CAP+'/'+MP_CAP+'). You are #'+q+' in the queue. Keep this tab open and you will be let in automatically.',5200);
+  MP.prevLive=MP.live; MP.prevQ=MP.want&&!MP.live?q:-1;
+  mpUI();
+}
+function mpPush(force){
+  const tr=MP.tr; if(!tr) return; if(!MP.want){ if(MP.sent){ tr.set(null); MP.sent=''; } return; }
+  const now=performance.now(); if(!force&&now-MP.sentAt<190) return;
+  const s=mpState(), key=JSON.stringify(s); if(key===MP.sent&&now-MP.sentAt<(tr.kind==='room'?1e9:2000)) return;
+  MP.sent=key; MP.sentAt=now; tr.set(s);
+}
+function mpTick(dt){
+  if(!MP.tr) return;
+  const kk=1-Math.pow(.001,dt);
+  MP.others.forEach(o=>{ if(!o.s) return; const ex=o.s.x-o.dx, ey=o.s.y-o.dy; if(Math.abs(ex)+Math.abs(ey)>420){ o.dx=o.s.x; o.dy=o.s.y; } else { o.dx+=ex*kk; o.dy+=ey*kk; }
+    const e=o.ent; e.x=o.dx; e.y=o.dy; e.face=o.s.f; e.moving=Math.abs(ex)+Math.abs(ey)>3; e.bubble=o.bubble; e.emote=o.emote; e.look=o.look; e.seed=o.seed; });
+  mpPush(false);
+}
+const mpVisible=(o,sc)=>MP.live&&MP.liveIds.has(o.id)&&o.s&&o.s.sc===sc&&!MP.muted.has(o.s.u);
+function mpEnts(sc){
+  if(!MP.live) return [];
+  const out=[]; MP.others.forEach(o=>{ if(!mpVisible(o,sc)) return;
+    if(sc==='campus'&&(o.dx<camX-80||o.dx>camX+vw/zoom+80||o.dy<camY-40||o.dy>camY+vh/zoom+160)) return;
+    out.push({e:o.ent,p:false}); }); return out;
+}
+function mpHit(wx,wy){ if(!MP.live||ROOM.on) return null; let best=null; MP.others.forEach(o=>{ if(mpVisible(o,'campus')&&Math.abs(wx-o.dx)<20&&wy>o.dy-56&&wy<o.dy+6) best=o; }); return best; }
+function mpSay(t){ if(!MP.want||Date.now()-MP.lastSayAt<1200) return; MP.lastSayAt=Date.now(); MP.say={t:mpStr(t,60),ts:Date.now()}; mpPush(true); }
+function mpEmote(i){ if(!MP.want) return; MP.em={i,ts:Date.now()}; mpPush(true); }
+addEventListener('pointerdown',()=>{ MP.lastIn=Date.now(); },{passive:true}); addEventListener('keydown',()=>{ MP.lastIn=Date.now(); },{passive:true});
+setInterval(()=>{ if(MP.live&&Date.now()-MP.lastIn>IDLE_MS){ mpLeave(true); } },5000);
+
+/* ---------- join / leave ---------- */
+function mpJoin(){
+  if(!verified()){ mpSheet(); return; }
+  if(!MP.tr){ toast('Multiplayer is not reachable from this view.',3000); return; }
+  MP.mode='multi'; mpSave(); MP.want=true; MP.idled=false; MP.jt=Date.now(); MP.lastIn=Date.now(); MP.prevQ=-1; MP.prevLive=false; closeSheet(); mpPush(true); mpCompute();
+}
+function mpLeave(idle){
+  if(!idle){ MP.mode='single'; mpSave(); }
+  if(!MP.want){ mpUI(); return; } MP.want=false; MP.live=false; MP.idled=!!idle; MP.say=null; MP.em=null; mpPush(true); mpCompute();
+  toast(idle?'You were moved out for being idle, which frees your spot. Tap Rejoin to queue again.':'You are back to solo play.',3800);
+  if(P.path) P.path=[];
+}
+
+/* ---------- HUD ---------- */
+function mpUI(){
+  const chip=$('#mpChip'), qb=$('#qbar'); if(!chip) return;
+  let t='Single', cls='', title='Single player. Tap to change mode.';
+  if(MP.live){ t='Multi '+MP.count; cls='live'; title='Multiplayer: '+MP.count+' of '+MP_CAP+' on campus'; }
+  else if(MP.want){ t='Queue '+(MP.rank-MP_CAP+1); cls='wait'; title='In the queue'; }
+  else if(MP.mode==='multi'){ t='Multi'; title='Multiplayer selected, not joined yet'; }
+  chip.className='chip mono '+cls; chip.innerHTML='<i></i><span>'+t+'</span>'; chip.title=title;
+  let html='';
+  if(MP.want&&!MP.live){ const q=MP.rank-MP_CAP+1; html='<span>Campus full &middot; you are #'+q+' &middot; '+(q-1)+' ahead</span><button class="btn" type="button" data-mp="leave">Leave queue</button>'; }
+  else if(MP.idled&&!MP.want){ html='<span>Moved out for being idle</span><button class="btn" type="button" data-mp="join">Rejoin</button>'; }
+  if(html){ if(qb.dataset.h!==html){ qb.firstElementChild.innerHTML=html; qb.dataset.h=html; } qb.classList.add('on'); } else qb.classList.remove('on');
+  const sig=[MP.live,MP.want,MP.status,MP.count,MP.qlen,MP.rank,MP.review.length,MP.busy].join('|');
+  if(sig!==MP.sig){ MP.sig=sig; const a=document.activeElement; if(sheet.classList.contains('on')&&sheetCard.dataset.mp&&!(a&&a.tagName==='INPUT')) mpSheet(true); }
+}
+$('#qbar').addEventListener('click',e=>{ const b=e.target.closest('[data-mp]'); if(!b) return; if(b.dataset.mp==='leave') mpLeave(false); else if(b.dataset.mp==='join') mpJoin(); });
+$('#mpChip').onclick=()=>mpModeSheet();
+
+/* ---------- registration + verification sheet ---------- */
+function mpImg(file){ return new Promise((res,rej)=>{ const img=new Image(), u=URL.createObjectURL(file); img.onload=()=>{ const m=Math.min(1,900/Math.max(img.width,img.height)), cv=document.createElement('canvas'); cv.width=Math.round(img.width*m); cv.height=Math.round(img.height*m); cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height); URL.revokeObjectURL(u); res(cv.toDataURL('image/jpeg',.62)); }; img.onerror=()=>{ URL.revokeObjectURL(u); rej(new Error('img')); }; img.src=u; }); }
+const mpModeNote=()=>MP.tr?(MP.tr.kind==='room'?'':MP.tr.kind==='sim'?'<p class="mp-note">Test crowd mode.</p>':'<p class="mp-note"><b>Demo mode.</b> No live server in this view, so other players are other tabs of this browser and verification is simulated. In the Unrest app this connects to the real service.</p>'):'<p class="mp-note">Multiplayer is not reachable from this view.</p>';
+function mpSheet(refresh){
+  const live=MP.count, st=MP.status, S0=MP.staff;
+  let h='<h2>Multiplayer</h2><div class="mono" style="color:var(--ink-2)">Solo is free. Multiplayer is for verified students.</div>';
+  h+='<div class="mp-stats"><span><b>'+live+'</b>/'+MP_CAP+' on campus</span><span><b>'+MP.qlen+'</b> waiting</span></div>'+mpModeNote();
+  if(MP.live||MP.want){
+    h+='<div class="mp-state ok">'+(MP.live?'You are live on campus with '+(MP.count-1)+' other'+(MP.count===2?'':'s')+'. Walk up to people, chat and use the emotes.':'Campus is full. You are #'+(MP.rank-MP_CAP+1)+' in the queue and will be let in automatically when someone leaves.')+'</div><div class="acts"><button class="btn" type="button" data-mp="leave">'+(MP.live?'Go back to solo':'Leave queue')+'</button></div>';
+  } else if(verified()){
+    h+='<div class="mp-state ok">Verified'+(S0?' (staff)':MP.method==='du'?' with a DU ID card':' as @'+esc(MP.handle))+'. You can play with others.</div><div class="acts"><button class="btn solid" type="button" data-mp="join">'+(MP.count>=MP_CAP?'Join the queue':'Join multiplayer')+'</button></div><p class="mp-note">Idle for 4 minutes and your spot is released for the next person in line.</p>';
+  } else if(st==='pending'){
+    h+='<div class="mp-state">Your details are with the verification team. '+(MP.tr&&MP.tr.kind==='room'?'You will be able to join as soon as they approve it. This page updates by itself.':'Demo approval is on its way.')+'</div>';
+  } else {
+    if(st==='rejected') h+='<div class="mp-state">'+esc(MP.reason||'We could not verify that. Check the details and try again.')+'</div>';
+    h+='<div class="mp-seg"><button type="button" data-mp="tab:un" aria-pressed="'+(MP.tab==='un')+'">Unrest username</button><button type="button" data-mp="tab:du" aria-pressed="'+(MP.tab==='du')+'">DU student ID</button></div>';
+    if(MP.tab==='du'){
+      h+='<div class="mp-f"><label for="mpCol">College</label><input id="mpCol" type="text" maxlength="60" placeholder="e.g. Kirori Mal College" value="'+esc(MP.college)+'"></div>'
+        +'<div class="mp-f"><label for="mpRoll">Course and year (optional)</label><input id="mpRoll" type="text" maxlength="40" placeholder="e.g. B.Sc. Maths, 2nd year" value="'+esc(MP.roll)+'"></div>'
+        +'<div class="mp-f"><label for="mpFile">Photo of your DU ID card (front)</label><input id="mpFile" type="file" accept="image/*"><img class="mp-prev" id="mpPrev" alt="ID preview"></div>'
+        +'<p class="mp-note">Used only to check you study at DU. Cover anything you do not want shared. The photo is deleted once it has been reviewed. Have an Unrest account? Use the username tab, it is quicker. No account yet? <a href="https://unrestdu.in/app" target="_blank" rel="noopener noreferrer">Get the app</a>.</p>';
+    } else {
+      h+='<div class="mp-f"><label for="mpUn">Unrest username</label><input id="mpUn" type="text" maxlength="25" placeholder="@yourname" autocapitalize="off" autocomplete="off" value="'+esc(MP.handle?'@'+MP.handle:'')+'"></div><p class="mp-note">No Unrest account yet? <a href="https://unrestdu.in/app" target="_blank" rel="noopener noreferrer">Download the app and create one</a>, then come back with your username.</p>';
+    }
+    h+='<div class="mp-err" id="mpErr">'+esc(MP.err)+'</div><div class="acts"><button class="btn solid" type="button" data-mp="submit"'+(MP.busy?' disabled':'')+'>'+(MP.busy?'Sending...':'Send for verification')+'</button></div>';
+  }
+  h+='<div class="acts" style="margin-top:14px"><button class="btn" type="button" data-mp="modes">Change play mode</button></div>';
+  if(S0&&MP.db){
+    h+='<h3 style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;border-top:1.5px solid var(--ink);padding-top:10px;margin:22px 0 6px">Review queue ('+MP.review.length+')</h3>';
+    h+=MP.review.length?MP.review.map(r=>'<div class="mp-rev">'+(r.photo&&String(r.photo).indexOf('data:image/jpeg;base64,')===0?'<img src="'+r.photo+'" alt="ID card">':'')+'<div><b>'+esc(r.name)+'</b><br>'+(r.method==='du'?'DU &middot; '+esc(r.college)+(r.roll?' &middot; '+esc(r.roll):''):'Unrest &middot; @'+esc(r.handle))+'</div><div style="display:flex;gap:6px;flex:none"><button class="btn solid" type="button" data-mp="ok:'+esc(r.id)+'">Approve</button><button class="btn" type="button" data-mp="no:'+esc(r.id)+'">Reject</button></div></div>').join(''):'<p class="mp-note">Nothing waiting.</p>';
+    if(MP.reports.length) h+='<p class="mp-note">'+MP.reports.length+' player report'+(MP.reports.length===1?'':'s')+' on file.</p>';
+  }
+  if(refresh&&sheetCard.dataset.mp){ const f=$('#mpCol'),r=$('#mpRoll'),u=$('#mpUn'); if(f) MP.college=f.value; if(r) MP.roll=r.value; if(u) MP.handle=u.value.replace(/^@/,''); }
+  openSheet(h); sheetCard.dataset.mp='1';
+  if(MP.idImg&&$('#mpPrev')){ $('#mpPrev').src=MP.idImg; $('#mpPrev').style.display='block'; }
+}
+async function mpSubmit(){
+  const un=MP.tab==='un'; MP.err='';
+  const col=($('#mpCol')||{}).value||'', roll=($('#mpRoll')||{}).value||'', hd=(($('#mpUn')||{}).value||'').replace(/^@/,'').trim();
+  if(un){ if(!/^[a-zA-Z0-9_.]{3,24}$/.test(hd)){ MP.err='Usernames are 3 to 24 letters, numbers, dots or underscores.'; return mpSheet(true); } MP.handle=hd; }
+  else { if(col.trim().length<2){ MP.err='Add your college name.'; return mpSheet(true); } if(!MP.idImg){ MP.err='Add a photo of your ID card.'; return mpSheet(true); } MP.college=mpStr(col,60).trim(); MP.roll=mpStr(roll,40).trim(); }
+  if(!MP.tr){ MP.err='Multiplayer is not reachable from this view.'; return mpSheet(true); }
+  MP.method=un?'un':'du'; MP.nonce=Math.random().toString(36).slice(2,10); MP.busy=true; mpSheet(true);
+  try{
+    if(MP.db){
+      await MP.db.doc('verify/'+MP.uid).set({ uid:MP.uid, name:mpStr(S.look.name,14), method:MP.method, handle:un?MP.handle:'', college:un?'':MP.college, roll:un?'':MP.roll, photo:un?null:MP.idImg, nonce:MP.nonce, ts:Date.now() });
+      MP.status='pending';
+    } else if(MP.tr.kind!=='room'){
+      MP.status='pending'; setTimeout(()=>{ MP.status='approved'; mpSave(); if(MP.mode==='multi') mpJoin(); else { mpSheet(true); toast('Demo approval done. You can join multiplayer.',3200); } },1600);
+    } else { throw new Error('nodb'); }
+    MP.idImg=''; MP.busy=false; mpSave(); mpSheet(true);
+  }catch(e){ MP.busy=false; MP.err=e&&e.message==='nodb'?'Verification is offline right now. Try again later.':'Could not send that. Check your connection and try again.'; mpSheet(true); }
+}
+async function mpDecide(id,ok){
+  if(!MP.db||!MP.staff) return; const r=MP.review.find(x=>x.id===id); if(!r) return;
+  try{ await MP.db.doc('status/'+id).set(ok?{s:'approved',method:r.method,for:r.nonce,ts:Date.now()}:{s:'rejected',reason:'We could not verify that. Check the photo or username and try again.',for:r.nonce,ts:Date.now()}); await MP.db.doc('verify/'+id).delete(); toast(ok?'Approved.':'Rejected.',1800); }catch(e){ toast('Could not save that decision.',2600); }
+}
+async function mpReport(o){
+  const rec={ u:o.s.u, n:o.s.n, ts:Date.now() };
+  MP.reports=MP.reports.concat([rec]).slice(-20);
+  if(MP.db){ try{ await MP.db.doc('reports/'+MP.uid).set({ list:MP.reports.map(x=>Object.assign({},x)) }); }catch(e){} }
+  MP.muted.add(o.s.u); mpSave(); toast('Reported and muted. Thank you.',2400); closeSheet();
+}
+function peerSheet(o){
+  const s=o.s, m=MP.muted.has(s.u);
+  openSheet('<h2>'+esc(s.n)+'</h2><div class="mono" style="color:var(--ink-2)">Verified '+(s.ok==='du'?'DU student':s.ok==='un'?'Unrest member':s.ok==='staff'?'Unrest team':'student')+'</div><div class="acts" style="margin-top:16px"><button class="btn" type="button" data-mp="mute:'+esc(o.id)+'">'+(m?'Unmute':'Mute')+' '+esc(s.n)+'</button><button class="btn" type="button" data-mp="report:'+esc(o.id)+'">Report and mute</button></div><p class="mp-note">Muting hides their avatar and chat for you.</p>');
+  sheetCard.dataset.mp='';
+}
+sheet.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-mp]'); if(!b) return; const a=b.dataset.mp, [k,v]=a.split(':');
+  if(k==='tab'){ const f=$('#mpCol'),r=$('#mpRoll'); if(f) MP.college=f.value; if(r) MP.roll=r.value; MP.tab=v; MP.err=''; mpSheet(true); }
+  else if(k==='submit') mpSubmit();
+  else if(k==='modes') mpModeSheet();
+  else if(k==='single'){ mpLeave(false); MP.modeSeen=true; MP.mode='single'; mpSave(); closeSheet(); toast('Single player. Free to play, no account needed.',2800); mpUI(); }
+  else if(k==='multi'){ MP.modeSeen=true; MP.mode='multi'; mpSave(); if(verified()) mpJoin(); else mpSheet(); }
+  else if(k==='join') mpJoin();
+  else if(k==='leave'){ mpLeave(false); closeSheet(); }
+  else if(k==='ok') mpDecide(v,true); else if(k==='no') mpDecide(v,false);
+  else if(k==='mute'||k==='report'){ const o=MP.others.get(v); if(!o||!o.s) return; if(k==='report') mpReport(o); else { if(MP.muted.has(o.s.u)) MP.muted.delete(o.s.u); else MP.muted.add(o.s.u); mpSave(); closeSheet(); } }
+});
+sheet.addEventListener('change',async e=>{ if(e.target.id!=='mpFile') return; const f=e.target.files&&e.target.files[0]; if(!f) return; if(!/^image\//.test(f.type)){ MP.err='That is not an image.'; return mpSheet(true); } try{ MP.idImg=await mpImg(f); const p=$('#mpPrev'); p.src=MP.idImg; p.style.display='block'; MP.err=''; const er=$('#mpErr'); if(er) er.textContent=''; }catch(x){ MP.err='Could not read that image.'; mpSheet(true); } });
+
+/* ---------- play mode chooser ---------- */
+function mpModeSheet(){
+  const v=verified(), multi=MP.mode==='multi'||MP.want;
+  const st=MP.live?'You are live on campus.':MP.want?'You are in the queue.':v?(MP.staff?'Verified (team).':'Verified. Ready to join.'):MP.status==='pending'?'Verification pending.':MP.status==='rejected'?'Verification needs another try.':'Not registered yet.';
+  openSheet('<div class="mono" style="color:var(--red)">Campus by Unrest</div><h2>Choose your campus</h2><div class="mono" style="color:var(--ink-2)">Pick how to play. Switch any time.</div>'
+   +'<div class="mp-modes">'
+   +'<div class="mp-mode'+(multi?'':' sel')+'"><div class="mono">Single player</div><b>Free</b><p>Walk the campus, enter the canteen and stock market, find the torn notes. No account. Works offline.</p><button class="btn solid" type="button" data-mp="single">Play single player</button></div>'
+   +'<div class="mp-mode'+(multi?' sel':'')+'"><div class="mono">Multiplayer</div><b>Verified students</b><p>Share the campus live with up to '+MP_CAP+' students. Needs registration plus an Unrest username or a DU ID card. Campus full? Join the queue and walk in when someone leaves.</p><div class="mp-stats"><span><b>'+MP.count+'</b>/'+MP_CAP+' on campus</span><span><b>'+MP.qlen+'</b> waiting</span></div><div class="mp-note">'+st+'</div><button class="btn" type="button" data-mp="multi">'+(v?'Play multiplayer':'Register for multiplayer')+'</button></div>'
+   +'</div>'+mpModeNote());
+  sheetCard.dataset.mp='';
+}
+function mpAutoJoin(){ if(MP.mode==='multi'&&verified()&&!MP.want&&!MP.idled&&MP.tr&&MP.modeSeen) mpJoin(); }
+const _enterClick=$('#bEnter').onclick;
+$('#bEnter').onclick=function(){ _enterClick.apply(this,arguments); if(!MP.modeSeen) setTimeout(mpModeSheet,350); };
+
+/* ---------- boot ---------- */
+async function mpInit(){
+  try{
+    if(window.claude&&claude.use){
+      const u=await claude.use('user');
+      if(u){ try{ const id=await u.id(); if(id) MP.uid=String(id); }catch(e){} try{ MP.staff=!!(await u.canEdit()); }catch(e){} }
+      MP.db=await claude.use('db');
+    }
+  }catch(e){}
+  if(MP.db){
+    if(MP.status==='approved'&&!MP.staff) MP.status='none';   // trust the server, not local storage
+    try{ MP.db.doc('status/'+MP.uid).onSnapshot(s=>{
+      if(s.exists){ const d=s.data()||{}; if(d.s==='approved'){ MP.status='approved'; MP.method=d.method==='un'?'un':'du'; } else if(d.s==='rejected'&&(MP.status!=='pending'||d.for===MP.nonce)){ MP.status='rejected'; MP.reason=mpStr(d.reason,140); } }
+      else if(MP.status==='approved') MP.status='none';
+      mpSave(); mpUI(); mpAutoJoin();
+    },()=>{}); }catch(e){}
+    if(MP.staff){
+      try{ MP.db.collection('verify').onSnapshot(q=>{ MP.review=q.docs.map(d=>Object.assign({id:d.id},d.data())); mpUI(); },()=>{}); }catch(e){}
+      try{ MP.db.collection('reports').onSnapshot(q=>{ MP.reports=q.docs.reduce((a,d)=>a.concat((d.data().list)||[]),[]); },()=>{}); }catch(e){}
+    }
+  } else if(!MP.staff&&MP.status==='approved'&&!window.__CAMPUS_SIM){ /* local demo approval persists */ }
+  MP.tr=await mpOpenTr();
+  if(MP.tr){ MP.tr.on(mpIngest); MP.kind=MP.tr.kind; }
+  mpUI(); mpAutoJoin();
+}
+
+/* ===== Lights: lamps, string lights, windows and doors that really switch on ===== */
+const GLOWS={};
+function glowSpr(hex){
+  if(GLOWS[hex]) return GLOWS[hex];
+  const n=parseInt(hex.slice(1),16), r=n>>16, g=(n>>8)&255, b=n&255, s=48, cv=document.createElement('canvas'); cv.width=cv.height=s*2;
+  const x=cv.getContext('2d'), gr=x.createRadialGradient(s,s,0,s,s,s);
+  gr.addColorStop(0,'rgba('+Math.min(255,r+80)+','+Math.min(255,g+80)+','+Math.min(255,b+80)+',1)');
+  gr.addColorStop(.2,'rgba('+r+','+g+','+b+',.65)');
+  gr.addColorStop(.55,'rgba('+r+','+g+','+b+',.17)');
+  gr.addColorStop(1,'rgba('+r+','+g+','+b+',0)');
+  x.fillStyle=gr; x.fillRect(0,0,s*2,s*2); return GLOWS[hex]=cv;
+}
+/* 0 in daylight, 1 once it is properly dark. Driven by the same clock as the sky tint. */
+function nightK(){ const a=tint()[3]; return Math.max(0,Math.min(1,(a-.11)/.2)); }
+let LIGHT_NK=0;
+function drawLights(c,k){
+  const nk=LIGHT_NK=nightK(); if(nk<.02) return;
+  const x0=camX-90, x1=camX+vw/zoom+90, y0=camY-130, y1=camY+vh/zoom+90, warm=glowSpr('#FFB45A');
+  c.save(); c.globalCompositeOperation='lighter';
+  for(let i=0;i<LIGHTS.length;i++){
+    const L=LIGHTS[i]; if(L.x<x0||L.x>x1||L.y<y0||L.y>y1) continue;
+    const sx=(L.x-camX)*k, sy=(L.y-camY)*k;
+    if(L.k==='lamp'){
+      const fl=.94+.06*Math.sin(tNow*7+L.x);
+      c.globalAlpha=.95*nk*fl; let r=36*k; c.drawImage(warm,sx-r,sy-r,r*2,r*2);
+      const gy=(L.g-camY)*k, pw=88*k, ph=44*k; c.globalAlpha=.6*nk*fl; c.drawImage(warm,sx-pw,gy-ph,pw*2,ph*2);
+    } else if(L.k==='bulb'){
+      const f=.7+.3*Math.sin(tNow*2.6+L.x*.09+L.y*.05); c.globalAlpha=f*nk; let r=15*k; c.drawImage(glowSpr(L.col),sx-r,sy-r,r*2,r*2);
+      c.globalAlpha=.9*nk*f; r=5*k; c.drawImage(warm,sx-r,sy-r,r*2,r*2);
+    } else if(L.k==='win'){
+      if(!L.on) continue;
+      c.globalAlpha=.7*nk; c.fillStyle='rgb(255,196,108)'; c.fillRect(sx-L.w/2*k,sy-L.h/2*k,L.w*k,L.h*k);
+      c.globalAlpha=.22*nk; const r=24*k; c.drawImage(warm,sx-r,sy-r,r*2,r*2);
+    } else if(L.k==='door'){
+      c.globalAlpha=.5*nk; const r=40*k; c.drawImage(warm,sx-r,sy-r,r*2,r*2);
+    }
+  }
+  c.restore();
+}
+/* Tap the clock to jump ahead (solo). Handy for seeing the lights come on. */
+const PHASES=[[9,5,'Morning'],[13,0,'Noon'],[17,50,'Dusk. The lamps flicker on.'],[19,45,'Evening'],[22,30,'Night']];
+$('#clockChip').onclick=()=>{
+  if(typeof MP!=='undefined'&&MP.live){ toast('The clock is shared with everyone on campus.',2200); return; }
+  const h=(simMin/60)%24; let i=PHASES.findIndex(p=>p[0]+p[1]/60>h+.05); if(i<0) i=0;
+  simMin=Math.floor(simMin/1440)*1440+PHASES[i][0]*60+PHASES[i][1]; toast(PHASES[i][2]+' Tap the clock to jump ahead.',2200);
+};
+
 /* ===== Boot ===== */
-function resize(){ dpr=Math.min(2,window.devicePixelRatio||1); const r=cvs.getBoundingClientRect(); vw=Math.max(1,r.width); vh=Math.max(1,r.height); cvs.width=Math.round(vw*dpr); cvs.height=Math.round(vh*dpr); zoom=Math.max(.55,Math.min(1.3,Math.min(vw/1100,vh/760)))*zoomK; }
+function resize(){ dpr=Math.min(matchMedia('(pointer:coarse)').matches?1.5:2,window.devicePixelRatio||1); const r=cvs.getBoundingClientRect(); vw=Math.max(1,r.width); vh=Math.max(1,r.height); cvs.width=Math.round(vw*dpr); cvs.height=Math.round(vh*dpr); zoom=Math.max(.55,Math.min(1.3,Math.min(vw/1100,vh/760)))*zoomK; }
 let last=0;
-function frame(ts){ const dt=Math.min(.05,(ts-last)/1000||0.016); last=ts; zoom=Math.max(.55,Math.min(1.3,Math.min(vw/1100,vh/760)))*zoomK; if(!$('#splash').classList.contains('on')||true){ update($('#splash').classList.contains('on')?0.0001:dt); } if(ROOM.on){ roomStep(Math.min(dt,.05)); roomRender(); } else { render(); renderMini(); } requestAnimationFrame(frame); }
+function frame(ts){ const dt=Math.min(.05,(ts-last)/1000||0.016); last=ts; zoom=Math.max(.55,Math.min(1.3,Math.min(vw/1100,vh/760)))*zoomK; if(!$('#splash').classList.contains('on')||true){ update($('#splash').classList.contains('on')?0.0001:dt); } mpTick(dt); if(ROOM.on){ roomStep(Math.min(dt,.05)); roomRender(); } else { render(); renderMini(); } requestAnimationFrame(frame); }
 addEventListener('resize',resize);
 TREES.length=0; buildWorld(); resize(); hud(); syncFields();
 if(S.started){ $('#splash').classList.remove('on'); $('#bEnter').textContent='Back to campus'; }
 else { $('#bEnter').textContent='Enter campus'; pvRaf=requestAnimationFrame(previewLoop); }
 try{ Promise.all([document.fonts.load('600 11px "IBM Plex Mono"'),document.fonts.load('italic 20px "Instrument Serif"'),document.fonts.load('500 12px "Archivo"'),document.fonts.load('700 20px Caveat')]).then(()=>{ TREES.length=0; buildWorld(); }).catch(()=>{}); }catch(e){}
+mpInit();
 requestAnimationFrame(frame);
 </script>
