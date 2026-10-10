@@ -294,6 +294,8 @@ button.chip:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
     </div>
   </div>
 </div>
+<script>window.__fbReady=new Promise(function(r){window.__fbResolve=r;});</script>
+<script type="module" src="campus-firebase.js"></script>
 <script>
 'use strict';
 /* ===== UNREST CAMPUS: data + avatar ===== */
@@ -1646,7 +1648,7 @@ function mpIngest(list){
    the rest queue. Each client computes this from the same presence data, so when someone leaves or idles out,
    the next in line is admitted without a server round trip. */
 function mpCompute(){
-  const all=[]; MP.others.forEach(o=>{ if(o.s&&o.s.w) all.push({id:o.id,jt:o.s.jt}); });
+  const all=[]; if(MP.qlist) MP.qlist.forEach(q=>{ if(q.id!==MP.uid) all.push({id:q.id,jt:q.jt}); }); else MP.others.forEach(o=>{ if(o.s&&o.s.w) all.push({id:o.id,jt:o.s.jt}); });
   if(MP.want) all.push({id:'me',jt:MP.jt});
   all.sort((a,b)=>a.jt-b.jt||(a.id<b.id?-1:1));
   const idx=all.findIndex(a=>a.id==='me');
@@ -1661,9 +1663,9 @@ function mpCompute(){
 }
 function mpPush(force){
   const tr=MP.tr; if(!tr) return; if(!MP.want){ if(MP.sent){ tr.set(null); MP.sent=''; } return; }
-  const now=performance.now(); if(!force&&now-MP.sentAt<190) return;
-  const s=mpState(), key=JSON.stringify(s); if(key===MP.sent&&now-MP.sentAt<(tr.kind==='room'?1e9:2000)) return;
-  MP.sent=key; MP.sentAt=now; tr.set(s);
+  const now=performance.now(); if(!force&&now-MP.sentAt<300) return;
+  const s=mpState(), key=JSON.stringify(s)+MP.live; if(key===MP.sent&&now-MP.sentAt<(tr.kind==='local'?2000:1e9)) return;
+  MP.sent=key; MP.sentAt=now; tr.set(s,MP.live);
 }
 function mpTick(dt){
   if(!MP.tr) return;
@@ -1718,7 +1720,7 @@ $('#mpChip').onclick=()=>mpModeSheet();
 
 /* ---------- registration + verification sheet ---------- */
 function mpImg(file){ return new Promise((res,rej)=>{ const img=new Image(), u=URL.createObjectURL(file); img.onload=()=>{ const m=Math.min(1,900/Math.max(img.width,img.height)), cv=document.createElement('canvas'); cv.width=Math.round(img.width*m); cv.height=Math.round(img.height*m); cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height); URL.revokeObjectURL(u); res(cv.toDataURL('image/jpeg',.62)); }; img.onerror=()=>{ URL.revokeObjectURL(u); rej(new Error('img')); }; img.src=u; }); }
-const mpModeNote=()=>MP.tr?(MP.tr.kind==='room'?'':MP.tr.kind==='sim'?'<p class="mp-note">Test crowd mode.</p>':'<p class="mp-note"><b>Demo mode.</b> No live server in this view, so other players are other tabs of this browser and verification is simulated. In the Unrest app this connects to the real service.</p>'):'<p class="mp-note">Multiplayer is not reachable from this view.</p>';
+const mpModeNote=()=>MP.tr?(MP.tr.kind==='room'||MP.tr.kind==='fb'?'':MP.tr.kind==='sim'?'<p class="mp-note">Test crowd mode.</p>':'<p class="mp-note"><b>Demo mode.</b> No live server in this view, so other players are other tabs of this browser and verification is simulated. In the Unrest app this connects to the real service.</p>'):'<p class="mp-note">Multiplayer is not reachable from this view.</p>';
 function mpSheet(refresh){
   const live=MP.count, st=MP.status, S0=MP.staff;
   let h='<h2>Multiplayer</h2><div class="mono" style="color:var(--ink-2)">Solo is free. Multiplayer is for verified students.</div>';
@@ -1728,7 +1730,7 @@ function mpSheet(refresh){
   } else if(verified()){
     h+='<div class="mp-state ok">Verified'+(S0?' (staff)':MP.method==='du'?' with a DU ID card':' as @'+esc(MP.handle))+'. You can play with others.</div><div class="acts"><button class="btn solid" type="button" data-mp="join">'+(MP.count>=MP_CAP?'Join the queue':'Join multiplayer')+'</button></div><p class="mp-note">Idle for 4 minutes and your spot is released for the next person in line.</p>';
   } else if(st==='pending'){
-    h+='<div class="mp-state">Your details are with the verification team. '+(MP.tr&&MP.tr.kind==='room'?'You will be able to join as soon as they approve it. This page updates by itself.':'Demo approval is on its way.')+'</div>';
+    h+='<div class="mp-state">Your details are with the verification team. '+(MP.tr&&(MP.tr.kind==='room'||MP.tr.kind==='fb')?'You will be able to join as soon as they approve it. This page updates by itself.':'Demo approval is on its way.')+'</div>';
   } else {
     if(st==='rejected') h+='<div class="mp-state">'+esc(MP.reason||'We could not verify that. Check the details and try again.')+'</div>';
     h+='<div class="mp-seg"><button type="button" data-mp="tab:un" aria-pressed="'+(MP.tab==='un')+'">Unrest username</button><button type="button" data-mp="tab:du" aria-pressed="'+(MP.tab==='du')+'">DU student ID</button></div>';
@@ -1743,6 +1745,7 @@ function mpSheet(refresh){
     h+='<div class="mp-err" id="mpErr">'+esc(MP.err)+'</div><div class="acts"><button class="btn solid" type="button" data-mp="submit"'+(MP.busy?' disabled':'')+'>'+(MP.busy?'Sending...':'Send for verification')+'</button></div>';
   }
   h+='<div class="acts" style="margin-top:14px"><button class="btn" type="button" data-mp="modes">Change play mode</button></div>';
+  if(MP.fb){ h+='<div class="acts" style="margin-top:8px"><button class="btn" type="button" data-mp="staff">'+(MP.staff?'Team sign out':'Team sign in')+'</button></div>'; }
   if(S0&&MP.db){
     h+='<h3 style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;border-top:1.5px solid var(--ink);padding-top:10px;margin:22px 0 6px">Review queue ('+MP.review.length+')</h3>';
     h+=MP.review.length?MP.review.map(r=>'<div class="mp-rev">'+(r.photo&&String(r.photo).indexOf('data:image/jpeg;base64,')===0?'<img src="'+r.photo+'" alt="ID card">':'')+'<div><b>'+esc(r.name)+'</b><br>'+(r.method==='du'?'DU &middot; '+esc(r.college)+(r.roll?' &middot; '+esc(r.roll):''):'Unrest &middot; @'+esc(r.handle))+'</div><div style="display:flex;gap:6px;flex:none"><button class="btn solid" type="button" data-mp="ok:'+esc(r.id)+'">Approve</button><button class="btn" type="button" data-mp="no:'+esc(r.id)+'">Reject</button></div></div>').join(''):'<p class="mp-note">Nothing waiting.</p>';
@@ -1761,13 +1764,14 @@ async function mpSubmit(){
   MP.method=un?'un':'du'; MP.nonce=Math.random().toString(36).slice(2,10); MP.busy=true; mpSheet(true);
   try{
     if(MP.db){
+      if(un&&MP.fb){ if(!(await MP.fb.checkUsername(MP.handle))) throw new Error('nouser'); await MP.fb.approveUsername(MP.handle); MP.status='approved'; MP.busy=false; mpSave(); if(MP.mode==='multi') mpJoin(); else mpSheet(true); return; }
       await MP.db.doc('verify/'+MP.uid).set({ uid:MP.uid, name:mpStr(S.look.name,14), method:MP.method, handle:un?MP.handle:'', college:un?'':MP.college, roll:un?'':MP.roll, photo:un?null:MP.idImg, nonce:MP.nonce, ts:Date.now() });
       MP.status='pending';
     } else if(MP.tr.kind!=='room'){
       MP.status='pending'; setTimeout(()=>{ MP.status='approved'; mpSave(); if(MP.mode==='multi') mpJoin(); else { mpSheet(true); toast('Demo approval done. You can join multiplayer.',3200); } },1600);
     } else { throw new Error('nodb'); }
     MP.idImg=''; MP.busy=false; mpSave(); mpSheet(true);
-  }catch(e){ MP.busy=false; MP.err=e&&e.message==='nodb'?'Verification is offline right now. Try again later.':'Could not send that. Check your connection and try again.'; mpSheet(true); }
+  }catch(e){ MP.busy=false; MP.err=e&&e.message==='nouser'?'We could not find that Unrest username. Check the spelling.':e&&e.message==='nodb'?'Verification is offline right now. Try again later.':'Could not send that. Check your connection and try again.'; mpSheet(true); }
 }
 async function mpDecide(id,ok){
   if(!MP.db||!MP.staff) return; const r=MP.review.find(x=>x.id===id); if(!r) return;
@@ -1793,7 +1797,7 @@ sheet.addEventListener('click',async e=>{
   else if(k==='multi'){ MP.modeSeen=true; MP.mode='multi'; mpSave(); if(verified()) mpJoin(); else mpSheet(); }
   else if(k==='join') mpJoin();
   else if(k==='leave'){ mpLeave(false); closeSheet(); }
-  else if(k==='ok') mpDecide(v,true); else if(k==='no') mpDecide(v,false);
+  else if(k==='staff'){ if(MP.fb) (MP.staff?MP.fb.staffSignOut():MP.fb.staffSignIn()); } else if(k==='ok') mpDecide(v,true); else if(k==='no') mpDecide(v,false);
   else if(k==='mute'||k==='report'){ const o=MP.others.get(v); if(!o||!o.s) return; if(k==='report') mpReport(o); else { if(MP.muted.has(o.s.u)) MP.muted.delete(o.s.u); else MP.muted.add(o.s.u); mpSave(); closeSheet(); } }
 });
 sheet.addEventListener('change',async e=>{ if(e.target.id!=='mpFile') return; const f=e.target.files&&e.target.files[0]; if(!f) return; if(!/^image\//.test(f.type)){ MP.err='That is not an image.'; return mpSheet(true); } try{ MP.idImg=await mpImg(f); const p=$('#mpPrev'); p.src=MP.idImg; p.style.display='block'; MP.err=''; const er=$('#mpErr'); if(er) er.textContent=''; }catch(x){ MP.err='Could not read that image.'; mpSheet(true); } });
@@ -1815,8 +1819,9 @@ $('#bEnter').onclick=function(){ _enterClick.apply(this,arguments); if(!MP.modeS
 
 /* ---------- boot ---------- */
 async function mpInit(){
+  try{ if(window.__fbReady){ const fb=await Promise.race([window.__fbReady,new Promise(r=>setTimeout(()=>r(null),6000))]); if(fb){ MP.fb=fb; MP.uid=fb.uid; MP.db=fb.db; MP.staff=fb.staff; } } }catch(e){}
   try{
-    if(window.claude&&claude.use){
+    if(!MP.fb&&window.claude&&claude.use){
       const u=await claude.use('user');
       if(u){ try{ const id=await u.id(); if(id) MP.uid=String(id); }catch(e){} try{ MP.staff=!!(await u.canEdit()); }catch(e){} }
       MP.db=await claude.use('db');
@@ -1834,8 +1839,8 @@ async function mpInit(){
       try{ MP.db.collection('reports').onSnapshot(q=>{ MP.reports=q.docs.reduce((a,d)=>a.concat((d.data().list)||[]),[]); },()=>{}); }catch(e){}
     }
   } else if(!MP.staff&&MP.status==='approved'&&!window.__CAMPUS_SIM){ /* local demo approval persists */ }
-  MP.tr=await mpOpenTr();
-  if(MP.tr){ MP.tr.on(mpIngest); MP.kind=MP.tr.kind; }
+  MP.tr=(MP.fb&&MP.fb.tr)||await mpOpenTr();
+  if(MP.tr){ MP.tr.on(mpIngest,l=>{ MP.qlist=l; mpCompute(); }); MP.kind=MP.tr.kind; }
   mpUI(); mpAutoJoin();
 }
 
