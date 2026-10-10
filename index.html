@@ -1778,7 +1778,19 @@ async function mpSubmit(){
       MP.status='pending'; setTimeout(()=>{ MP.status='approved'; mpSave(); if(MP.mode==='multi') mpJoin(); else { mpSheet(true); toast('Demo approval done. You can join multiplayer.',3200); } },1600);
     } else { throw new Error('nodb'); }
     MP.idImg=''; MP.busy=false; mpSave(); mpSheet(true);
-  }catch(e){ MP.busy=false; MP.err=e&&e.message==='nouser'?'We could not find that Unrest username. Check the spelling.':e&&e.message==='nodb'?'Verification is offline right now. Try again later.':'Could not send that. Check your connection and try again.'; mpSheet(true); }
+    } catch (e) {
+    console.error("Campus verification submission failed:", e);
+    MP.busy = false;
+
+    MP.err =
+      e?.message === 'nouser'
+        ? 'Unrest username not found on this account.'
+        : e?.message === 'nodb'
+        ? 'Verification service unavailable.'
+        : `Could not submit: ${e?.code || e?.message || 'Unknown error'}`;
+
+    mpSheet(true);
+  }
 }
 async function mpDecide(id,ok){
   if(!MP.db||!MP.staff) return; const r=MP.review.find(x=>x.id===id); if(!r) return;
