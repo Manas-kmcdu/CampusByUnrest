@@ -1573,13 +1573,14 @@ sheet.addEventListener('click',e=>{
 });
 
 /* ===== Multiplayer =====
-   Solo play is free and needs nothing. Multiplayer needs a verified account (DU ID card or Unrest username).
+   Solo play is free and needs nothing. Multiplayer requires a signed-in Unrest account and matching username.
    Up to MP_CAP verified players share the campus; everyone else waits in a first-come queue and is let in
    automatically when someone leaves or goes idle. Presence rides on a small transport layer so the same code
    runs on the artifact room, a Firebase adapter (Unrest production) or a local same-browser demo. */
 const MP_CAP=100, MP_LS='unrest-campus-mp-v1', IDLE_MS=4*60*1000;
-const MP={ tr:null, kind:'', loginEmail:'', want:false, live:false, rank:-1, count:0, qlen:0, others:new Map(), liveIds:new Set(), jt:0, uid:'', status:'none', method:'', handle:'', college:'', roll:'', reason:'', nonce:'', staff:false, db:null, muted:new Set(), sent:'', sentAt:0, lastIn:Date.now(), say:null, em:null, idled:false, prevLive:false, prevQ:-1, review:[], reports:[], tab:'un', idImg:'', busy:false, err:'', lastSayAt:0, mode:'single', modeSeen:false, sig:'' };
-try{ const d=JSON.parse(localStorage.getItem(MP_LS)||'{}'); MP.status=d.status||'none'; MP.method=d.method||''; MP.handle=d.handle||''; MP.college=d.college||''; MP.roll=d.roll||''; MP.uid=d.uid||''; MP.nonce=d.nonce||''; MP.mode=d.mode==='multi'?'multi':'single'; MP.modeSeen=!!d.modeSeen; MP.muted=new Set(Array.isArray(d.muted)?d.muted:[]); }catch(e){}
+const MP={ tr:null, kind:'', loginEmail:'', want:false, live:false, rank:-1, count:0, qlen:0, others:new Map(), liveIds:new Set(), jt:0, uid:'', status:'none', method:'', handle:'', reason:'', nonce:'', staff:false, db:null, muted:new Set(), sent:'', sentAt:0, lastIn:Date.now(), say:null, em:null, idled:false, prevLive:false, prevQ:-1, review:[], reports:[], approvedUsers:[], livePlayers:[], busy:false, err:'', lastSayAt:0, mode:'single', modeSeen:false, sig:'', netError:'', teamLogin:false };
+addEventListener('campus-network-error', e=>{ MP.netError=String(e.detail||'Realtime Database error'); mpUI(); if(sheet.classList.contains('on')&&sheetCard.dataset.mp) mpSheet(true); });
+try{ const d=JSON.parse(localStorage.getItem(MP_LS)||'{}'); MP.status=d.status||'none'; MP.method=d.method||''; MP.handle=d.handle||''; MP.uid=d.uid||''; MP.nonce=d.nonce||''; MP.mode=d.mode==='multi'?'multi':'single'; MP.modeSeen=!!d.modeSeen; MP.muted=new Set(Array.isArray(d.muted)?d.muted:[]); }catch(e){}
 if(!MP.uid) MP.uid='u'+Math.random().toString(36).slice(2,12);
 function mpSave(){ try{ localStorage.setItem(MP_LS,JSON.stringify({status:MP.status,method:MP.method,handle:MP.handle,college:MP.college,roll:MP.roll,uid:MP.uid,nonce:MP.nonce,mode:MP.mode,modeSeen:MP.modeSeen,muted:[...MP.muted]})); }catch(e){} }
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -1712,7 +1713,7 @@ function mpUI(){
   if(MP.want&&!MP.live){ const q=MP.rank-MP_CAP+1; html='<span>Campus full &middot; you are #'+q+' &middot; '+(q-1)+' ahead</span><button class="btn" type="button" data-mp="leave">Leave queue</button>'; }
   else if(MP.idled&&!MP.want){ html='<span>Moved out for being idle</span><button class="btn" type="button" data-mp="join">Rejoin</button>'; }
   if(html){ if(qb.dataset.h!==html){ qb.firstElementChild.innerHTML=html; qb.dataset.h=html; } qb.classList.add('on'); } else qb.classList.remove('on');
-  const sig=[MP.live,MP.want,MP.status,MP.count,MP.qlen,MP.rank,MP.review.length,MP.busy].join('|');
+  const sig=[MP.live,MP.want,MP.status,MP.count,MP.qlen,MP.rank,MP.approvedUsers.length,MP.livePlayers.length,MP.busy,MP.netError].join('|');
   if(sig!==MP.sig){ MP.sig=sig; const a=document.activeElement; if(sheet.classList.contains('on')&&sheetCard.dataset.mp&&!(a&&a.tagName==='INPUT')) mpSheet(true); }
 }
 $('#qbar').addEventListener('click',e=>{ const b=e.target.closest('[data-mp]'); if(!b) return; if(b.dataset.mp==='leave') mpLeave(false); else if(b.dataset.mp==='join') mpJoin(); });
@@ -1723,72 +1724,54 @@ function mpImg(file){ return new Promise((res,rej)=>{ const img=new Image(), u=U
 const mpModeNote=()=>MP.tr?(MP.tr.kind==='room'||MP.tr.kind==='fb'?'':MP.tr.kind==='sim'?'<p class="mp-note">Test crowd mode.</p>':'<p class="mp-note"><b>Demo mode.</b> No live server in this view, so other players are other tabs of this browser and verification is simulated. In the Unrest app this connects to the real service.</p>'):'<p class="mp-note">Multiplayer is not reachable from this view.</p>';
 function mpSheet(refresh){
   const live=MP.count, st=MP.status, S0=MP.staff;
-  let h='<h2>Multiplayer</h2><div class="mono" style="color:var(--ink-2)">Solo is free. Multiplayer is for verified students.</div>';
+  let h='<h2>Multiplayer</h2><div class="mono" style="color:var(--ink-2)">Solo is free. Multiplayer access uses your Unrest account.</div>';
   h+='<div class="mp-stats"><span><b>'+live+'</b>/'+MP_CAP+' on campus</span><span><b>'+MP.qlen+'</b> waiting</span></div>'+mpModeNote();
-  if(MP.fb && !MP.staff && !MP.fb.account){
-    h+='<div class="mp-state">Sign in with your existing Unrest account to submit verification. Your approval will stay linked to this account across devices.</div>'
+  if(MP.teamLogin && !MP.staff){
+    h+='<h3>Team sign in</h3><div class="mp-f"><label for="mpTeamEmail">Team email</label><input id="mpTeamEmail" type="email" autocomplete="username" placeholder="manaspandeya@gmail.com" value="'+esc(MP.loginEmail||'')+'"></div><div class="mp-f"><label for="mpTeamPass">Password</label><input id="mpTeamPass" type="password" autocomplete="current-password" placeholder="Team account password"></div><div class="mp-err">'+esc(MP.err)+'</div><div class="acts"><button class="btn solid" type="button" data-mp="teamLogin">Sign in as team</button></div>';
+  } else if(MP.fb && !MP.staff && !MP.fb.account){
+    h+='<div class="mp-state">Sign in with your existing Unrest account first. Campus checks that the username belongs to this account.</div>'
       +'<div class="mp-f"><label for="mpLoginEmail">Unrest account email</label><input id="mpLoginEmail" type="email" autocomplete="username" placeholder="you@example.com" value="'+esc(MP.loginEmail||'')+'"></div>'
       +'<div class="mp-f"><label for="mpLoginPass">Password</label><input id="mpLoginPass" type="password" autocomplete="current-password" placeholder="Your Unrest password"></div>'
       +'<div class="mp-err">'+esc(MP.err)+'</div><div class="acts"><button class="btn solid" type="button" data-mp="studentLogin">Sign in with Unrest</button></div>';
   } else if(MP.live||MP.want){
-    h+='<div class="mp-state ok">'+(MP.live?'You are live on campus with '+(MP.count-1)+' other'+(MP.count===2?'':'s')+'. Walk up to people, chat and use the emotes.':'Campus is full. You are #'+(MP.rank-MP_CAP+1)+' in the queue and will be let in automatically when someone leaves.')+'</div><div class="acts"><button class="btn" type="button" data-mp="leave">'+(MP.live?'Go back to solo':'Leave queue')+'</button></div>';
+    h+='<div class="mp-state ok">'+(MP.live?'You are live on campus with '+Math.max(0,MP.count-1)+' other player'+(MP.count===2?'':'s')+'. Walk up to people, chat and use the emotes.':'Campus is full. You are #'+(MP.rank-MP_CAP+1)+' in the queue and will be let in automatically when someone leaves.')+'</div><div class="acts"><button class="btn" type="button" data-mp="leave">'+(MP.live?'Go back to solo':'Leave queue')+'</button></div>';
   } else if(verified()){
-    h+='<div class="mp-state ok">Verified'+(S0?' (staff)':MP.method==='du'?' with a DU ID card':' as @'+esc(MP.handle))+'. You can play with others.</div><div class="acts"><button class="btn solid" type="button" data-mp="join">'+(MP.count>=MP_CAP?'Join the queue':'Join multiplayer')+'</button></div><p class="mp-note">Idle for 4 minutes and your spot is released for the next person in line.</p>';
-  } else if(st==='pending'){
-    h+='<div class="mp-state">Your details are with the verification team. '+(MP.tr&&(MP.tr.kind==='room'||MP.tr.kind==='fb')?'You will be able to join as soon as they approve it. This page updates by itself.':'Demo approval is on its way.')+'</div>';
+    h+='<div class="mp-state ok">Unrest account verified'+(S0?' (team)':(MP.handle?' as @'+esc(MP.handle):''))+'. You can play with others.</div><div class="acts"><button class="btn solid" type="button" data-mp="join">'+(MP.count>=MP_CAP?'Join the queue':'Join multiplayer')+'</button></div><p class="mp-note">Idle for 4 minutes and your spot is released for the next person in line.</p>';
   } else {
-    if(st==='rejected') h+='<div class="mp-state">'+esc(MP.reason||'We could not verify that. Check the details and try again.')+'</div>';
-    h+='<div class="mp-seg"><button type="button" data-mp="tab:un" aria-pressed="'+(MP.tab==='un')+'">Unrest username</button><button type="button" data-mp="tab:du" aria-pressed="'+(MP.tab==='du')+'">DU student ID</button></div>';
-    if(MP.tab==='du'){
-      h+='<div class="mp-f"><label for="mpCol">College</label><input id="mpCol" type="text" maxlength="60" placeholder="e.g. Kirori Mal College" value="'+esc(MP.college)+'"></div>'
-        +'<div class="mp-f"><label for="mpRoll">Course and year (optional)</label><input id="mpRoll" type="text" maxlength="40" placeholder="e.g. B.Sc. Maths, 2nd year" value="'+esc(MP.roll)+'"></div>'
-        +'<div class="mp-f"><label for="mpFile">Photo of your DU ID card (front)</label><input id="mpFile" type="file" accept="image/*"><img class="mp-prev" id="mpPrev" alt="ID preview"></div>'
-        +'<p class="mp-note">Used only to check you study at DU. Cover anything you do not want shared. The photo is deleted once it has been reviewed. Have an Unrest account? Use the username tab, it is quicker. No account yet? <a href="https://unrestdu.in/app" target="_blank" rel="noopener noreferrer">Get the app</a>.</p>';
-    } else {
-      h+='<div class="mp-f"><label for="mpUn">Unrest username</label><input id="mpUn" type="text" maxlength="25" placeholder="@yourname" autocapitalize="off" autocomplete="off" value="'+esc(MP.handle?'@'+MP.handle:'')+'"></div><p class="mp-note">No Unrest account yet? <a href="https://unrestdu.in/app" target="_blank" rel="noopener noreferrer">Download the app and create one</a>, then come back with your username.</p>';
-    }
-    h+='<div class="mp-err" id="mpErr">'+esc(MP.err)+'</div><div class="acts"><button class="btn solid" type="button" data-mp="submit"'+(MP.busy?' disabled':'')+'>'+(MP.busy?'Sending...':'Send for verification')+'</button></div>';
+    h+='<div class="mp-f"><label for="mpUn">Your Unrest username</label><input id="mpUn" type="text" maxlength="25" placeholder="@yourname" autocapitalize="off" autocomplete="username" value="'+esc(MP.handle?'@'+MP.handle:'')+'"></div>'
+      +'<p class="mp-note">Your username must belong to the Unrest account you signed in with. No account yet? <a href="https://unrestdu.in/app" target="_blank" rel="noopener noreferrer">Download Unrest</a>, create an account, then return here.</p>'
+      +(MP.netError?'<div class="mp-err">Network error: '+esc(MP.netError)+'</div>':'')
+      +'<div class="mp-err" id="mpErr">'+esc(MP.err)+'</div><div class="acts"><button class="btn solid" type="button" data-mp="submit"'+(MP.busy?' disabled':'')+'>'+(MP.busy?'Checking account...':'Verify username & continue')+'</button></div>';
   }
   h+='<div class="acts" style="margin-top:14px"><button class="btn" type="button" data-mp="modes">Change play mode</button></div>';
   if(MP.fb){ h+='<div class="acts" style="margin-top:8px"><button class="btn" type="button" data-mp="staff">'+(MP.staff?'Team sign out':'Team sign in')+'</button></div>'; }
-  if(S0&&MP.db){
-    h+='<h3 style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;border-top:1.5px solid var(--ink);padding-top:10px;margin:22px 0 6px">Review queue ('+MP.review.length+')</h3>';
-    h+=MP.review.length?MP.review.map(r=>'<div class="mp-rev">'+(r.photo&&String(r.photo).indexOf('data:image/jpeg;base64,')===0?'<img src="'+r.photo+'" alt="ID card">':'')+'<div><b>'+esc(r.name)+'</b><br>'+(r.method==='du'?'DU &middot; '+esc(r.college)+(r.roll?' &middot; '+esc(r.roll):''):'Unrest &middot; @'+esc(r.handle))+'</div><div style="display:flex;gap:6px;flex:none"><button class="btn solid" type="button" data-mp="ok:'+esc(r.id)+'">Approve</button><button class="btn" type="button" data-mp="no:'+esc(r.id)+'">Reject</button></div></div>').join(''):'<p class="mp-note">Nothing waiting.</p>';
-    if(MP.reports.length) h+='<p class="mp-note">'+MP.reports.length+' player report'+(MP.reports.length===1?'':'s')+' on file.</p>';
+  if(S0){
+    h+='<h3>Approved Unrest accounts ('+MP.approvedUsers.length+')</h3>';
+    h+=MP.approvedUsers.length?'<div class="mp-note">'+MP.approvedUsers.map(u=>'<div style="padding:7px 0;border-bottom:1px solid var(--paper-2)"><b>@'+esc(u.handle||'unknown')+'</b><br><span class="mono">UID '+esc(u.uid)+'</span></div>').join('')+'</div>':'<p class="mp-note">No approved accounts visible yet.</p>';
+    h+='<h3>Live players ('+MP.livePlayers.length+')</h3>';
+    h+=MP.livePlayers.length?'<div class="mp-note">'+MP.livePlayers.map(u=>'<div style="padding:7px 0;border-bottom:1px solid var(--paper-2)"><b>'+esc(u.name||'Student')+'</b> '+(u.handle?'(@'+esc(u.handle)+')':'')+'<br><span class="mono">'+esc(u.scene||'campus')+' · x '+esc(u.x)+' · y '+esc(u.y)+'</span></div>').join('')+'</div>':'<p class="mp-note">No live player positions received yet.</p>';
+    if(MP.netError) h+='<p class="mp-err">Realtime Database: '+esc(MP.netError)+'</p>';
+    if(MP.reports.length) h+='<p class="mp-note">'+MP.reports.length+' player reports on file.</p>';
   }
-  if(refresh&&sheetCard.dataset.mp){ const f=$('#mpCol'),r=$('#mpRoll'),u=$('#mpUn'); if(f) MP.college=f.value; if(r) MP.roll=r.value; if(u) MP.handle=u.value.replace(/^@/,''); }
+  if(refresh&&sheetCard.dataset.mp){ const u=$('#mpUn'); if(u) MP.handle=u.value.replace(/^@/,''); }
   openSheet(h); sheetCard.dataset.mp='1';
-  if(MP.idImg&&$('#mpPrev')){ $('#mpPrev').src=MP.idImg; $('#mpPrev').style.display='block'; }
 }
 async function mpSubmit(){
-  const un=MP.tab==='un'; MP.err='';
-  const col=($('#mpCol')||{}).value||'', roll=($('#mpRoll')||{}).value||'', hd=(($('#mpUn')||{}).value||'').replace(/^@/,'').trim();
+  MP.err='';
+  const hd=String((($('#mpUn')||{}).value||'')).replace(/^@/,'').trim();
   if(MP.fb && !MP.staff && !MP.fb.account){ MP.err='Sign in with your existing Unrest email and password first.'; return mpSheet(true); }
-  if(un){ if(!/^[a-zA-Z0-9_.]{3,24}$/.test(hd)){ MP.err='Usernames are 3 to 24 letters, numbers, dots or underscores.'; return mpSheet(true); } MP.handle=hd; }
-  else { if(col.trim().length<2){ MP.err='Add your college name.'; return mpSheet(true); } if(!MP.idImg){ MP.err='Add a photo of your ID card.'; return mpSheet(true); } MP.college=mpStr(col,60).trim(); MP.roll=mpStr(roll,40).trim(); }
-  if(!MP.tr){ MP.err='Multiplayer is not reachable from this view.'; return mpSheet(true); }
-  MP.method=un?'un':'du'; MP.nonce=Math.random().toString(36).slice(2,10); MP.busy=true; mpSheet(true);
+  if(!/^[a-zA-Z0-9_.]{3,24}$/.test(hd)){ MP.err='Usernames must be 3–24 letters, numbers, dots or underscores.'; return mpSheet(true); }
+  if(!MP.tr||!MP.fb){ MP.err='Live multiplayer needs the Firebase connection. Reload and try again.'; return mpSheet(true); }
+  MP.handle=hd; MP.method='un'; MP.busy=true; MP.netError=''; mpSheet(true);
   try{
-    if(MP.db){
-      // Unrest usernames must also enter the staff review queue; do not auto-approve them here.
-      if(un&&MP.fb){ const ownHandle=await MP.fb.checkUsername(MP.handle); if(!ownHandle) throw new Error('nouser'); MP.handle=ownHandle; }
-      await MP.db.doc('verify/'+MP.uid).set({ uid:MP.uid, name:mpStr(S.look.name,14), method:MP.method, handle:un?MP.handle:'', college:un?'':MP.college, roll:un?'':MP.roll, photo:un?null:MP.idImg, nonce:MP.nonce, ts:Date.now() });
-      MP.status='pending';
-    } else if(MP.tr.kind!=='room'){
-      MP.status='pending'; setTimeout(()=>{ MP.status='approved'; mpSave(); if(MP.mode==='multi') mpJoin(); else { mpSheet(true); toast('Demo approval done. You can join multiplayer.',3200); } },1600);
-    } else { throw new Error('nodb'); }
-    MP.idImg=''; MP.busy=false; mpSave(); mpSheet(true);
-    } catch (e) {
-    console.error("Campus verification submission failed:", e);
-    MP.busy = false;
-
-    MP.err =
-      e?.message === 'nouser'
-        ? 'Unrest username not found on this account.'
-        : e?.message === 'nodb'
-        ? 'Verification service unavailable.'
-        : `Could not submit: ${e?.code || e?.message || 'Unknown error'}`;
-
+    const ownHandle=await MP.fb.approveUsername(MP.handle);
+    MP.handle=ownHandle; MP.status='approved'; MP.method='un'; MP.err='';
+    MP.nonce=''; mpSave(); MP.busy=false; mpSheet(true);
+    toast('Unrest username verified. You can join multiplayer.',3000);
+  }catch(e){
+    console.error('Campus username validation/approval failed:',e);
+    MP.busy=false;
+    MP.err=e?.message==='nouser'?'That username does not belong to the Unrest account you signed in with.':(e?.code||e?.message||'Could not verify username. Check the connection and Firebase rules.');
     mpSheet(true);
   }
 }
@@ -1809,8 +1792,7 @@ function peerSheet(o){
 }
 sheet.addEventListener('click',async e=>{
   const b=e.target.closest('[data-mp]'); if(!b) return; const a=b.dataset.mp, [k,v]=a.split(':');
-  if(k==='tab'){ const f=$('#mpCol'),r=$('#mpRoll'); if(f) MP.college=f.value; if(r) MP.roll=r.value; MP.tab=v; MP.err=''; mpSheet(true); }
-  else if(k==='submit') mpSubmit();
+  if(k==='submit') mpSubmit();
   else if(k==='modes') mpModeSheet();
   else if(k==='single'){ mpLeave(false); MP.modeSeen=true; MP.mode='single'; mpSave(); closeSheet(); toast('Single player. Free to play, no account needed.',2800); mpUI(); }
   else if(k==='multi'){ MP.modeSeen=true; MP.mode='multi'; mpSave(); if(verified()) mpJoin(); else mpSheet(); }
@@ -1822,19 +1804,25 @@ sheet.addEventListener('click',async e=>{
     if(!email.trim()||!password){ MP.err='Enter your Unrest email and password.'; return mpSheet(true); }
     try{ await MP.fb.studentSignIn(email,password); location.reload(); }
     catch(err){ MP.err=err&&err.code==='auth/invalid-credential'?'Email or password is incorrect.':err&&err.code==='auth/too-many-requests'?'Too many attempts. Try again later.':'Could not sign in. Check your details and try again.'; mpSheet(true); }
-  } else if(k==='staff'){ if(MP.fb) (MP.staff?MP.fb.staffSignOut():MP.fb.staffSignIn()); } else if(k==='ok') mpDecide(v,true); else if(k==='no') mpDecide(v,false);
+  } else if(k==='teamLogin'){
+    const email=($('#mpTeamEmail')||{}).value||'', password=($('#mpTeamPass')||{}).value||'';
+    MP.loginEmail=email.trim(); MP.err='';
+    if(!email.trim()||!password){ MP.err='Enter the team email and password.'; return mpSheet(true); }
+    try{ await MP.fb.staffSignIn(email,password); location.reload(); }
+    catch(err){ MP.err=err?.message==='not-staff'?'This account is not the verified team account.':'Team sign-in failed. Check the email, password and verified-email status.'; mpSheet(true); }
+  } else if(k==='staff'){ if(MP.fb){ if(MP.staff) MP.fb.staffSignOut(); else { MP.teamLogin=true; MP.err=''; mpSheet(true); } } } else if(k==='ok') mpDecide(v,true); else if(k==='no') mpDecide(v,false);
   else if(k==='mute'||k==='report'){ const o=MP.others.get(v); if(!o||!o.s) return; if(k==='report') mpReport(o); else { if(MP.muted.has(o.s.u)) MP.muted.delete(o.s.u); else MP.muted.add(o.s.u); mpSave(); closeSheet(); } }
 });
-sheet.addEventListener('change',async e=>{ if(e.target.id!=='mpFile') return; const f=e.target.files&&e.target.files[0]; if(!f) return; if(!/^image\//.test(f.type)){ MP.err='That is not an image.'; return mpSheet(true); } try{ MP.idImg=await mpImg(f); const p=$('#mpPrev'); p.src=MP.idImg; p.style.display='block'; MP.err=''; const er=$('#mpErr'); if(er) er.textContent=''; }catch(x){ MP.err='Could not read that image.'; mpSheet(true); } });
+
 
 /* ---------- play mode chooser ---------- */
 function mpModeSheet(){
   const v=verified(), multi=MP.mode==='multi'||MP.want;
-  const st=MP.live?'You are live on campus.':MP.want?'You are in the queue.':v?(MP.staff?'Verified (team).':'Verified. Ready to join.'):MP.status==='pending'?'Verification pending.':MP.status==='rejected'?'Verification needs another try.':'Not registered yet.';
+  const st=MP.live?'You are live on campus.':MP.want?'You are in the queue.':v?(MP.staff?'Verified (team).':'Verified. Ready to join.'):'Sign in and verify your Unrest username.';
   openSheet('<div class="mono" style="color:var(--red)">Campus by Unrest</div><h2>Choose your campus</h2><div class="mono" style="color:var(--ink-2)">Pick how to play. Switch any time.</div>'
    +'<div class="mp-modes">'
    +'<div class="mp-mode'+(multi?'':' sel')+'"><div class="mono">Single player</div><b>Free</b><p>Walk the campus, enter the canteen and stock market, find the torn notes. No account. Works offline.</p><button class="btn solid" type="button" data-mp="single">Play single player</button></div>'
-   +'<div class="mp-mode'+(multi?' sel':'')+'"><div class="mono">Multiplayer</div><b>Verified students</b><p>Share the campus live with up to '+MP_CAP+' students. Needs registration plus an Unrest username or a DU ID card. Campus full? Join the queue and walk in when someone leaves.</p><div class="mp-stats"><span><b>'+MP.count+'</b>/'+MP_CAP+' on campus</span><span><b>'+MP.qlen+'</b> waiting</span></div><div class="mp-note">'+st+'</div><button class="btn" type="button" data-mp="multi">'+(v?'Play multiplayer':'Register for multiplayer')+'</button></div>'
+   +'<div class="mp-mode'+(multi?' sel':'')+'"><div class="mono">Multiplayer</div><b>Verified students</b><p>Share the campus live with up to '+MP_CAP+' players. Sign in with your Unrest account and verify its username. Campus full? Join the queue and walk in when someone leaves.</p><div class="mp-stats"><span><b>'+MP.count+'</b>/'+MP_CAP+' on campus</span><span><b>'+MP.qlen+'</b> waiting</span></div><div class="mp-note">'+st+'</div><button class="btn" type="button" data-mp="multi">'+(v?'Play multiplayer':'Register for multiplayer')+'</button></div>'
    +'</div>'+mpModeNote());
   sheetCard.dataset.mp='';
 }
@@ -1859,9 +1847,9 @@ async function mpInit(){
       else if(MP.status==='approved') MP.status='none';
       mpSave(); mpUI(); mpAutoJoin();
     },()=>{}); }catch(e){}
-    if(MP.staff){
-      try{ MP.db.collection('verify').onSnapshot(q=>{ MP.review=q.docs.map(d=>Object.assign({id:d.id},d.data())); mpUI(); },()=>{}); }catch(e){}
-      try{ MP.db.collection('reports').onSnapshot(q=>{ MP.reports=q.docs.reduce((a,d)=>a.concat((d.data().list)||[]),[]); },()=>{}); }catch(e){}
+    if(MP.staff && MP.fb){
+      try{ MP.fb.watchApprovedUsers(list=>{ MP.approvedUsers=list; mpUI(); if(sheet.classList.contains('on')&&sheetCard.dataset.mp) mpSheet(true); },e=>{ MP.netError=e?.code||e?.message||'approved-users read failed'; console.error(e); mpUI(); }); }catch(e){ console.error(e); }
+      try{ MP.fb.watchPlayers(list=>{ MP.livePlayers=list; mpUI(); if(sheet.classList.contains('on')&&sheetCard.dataset.mp) mpSheet(true); },e=>{ MP.netError=e?.code||e?.message||'live-player read failed'; console.error(e); mpUI(); }); }catch(e){ console.error(e); }
     }
   } else if(!MP.staff&&MP.status==='approved'&&!window.__CAMPUS_SIM){ /* local demo approval persists */ }
   MP.tr=(MP.fb&&MP.fb.tr)||await mpOpenTr();
