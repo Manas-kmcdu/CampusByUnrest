@@ -1,283 +1,551 @@
 
- // Firebase backend for Campus by Unrest multiplayer. Load with <script type="module" src="campus-firebase.js">.
-// Resolves window.__fbReady with { uid, staff, db, tr, ... } (or null if Firebase can't start; the game then falls back).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInAnonymously, signInWithPopup, signInWithEmailAndPassword, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { getFirestore, doc, collection, getDoc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { getDatabase, ref, set as rset, remove as rremove, onChildAdded, onChildChanged, onChildRemoved, onValue, onDisconnect } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInAnonymously,
+  signInWithEmailAndPassword,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+import {
+  getFirestore,
+  doc,
+  collection,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+import {
+  getDatabase,
+  ref,
+  set,
+  remove,
+  onValue,
+  onChildAdded,
+  onChildChanged,
+  onChildRemoved,
+  onDisconnect
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
 const ADMIN_EMAIL = "manaspandeya@gmail.com";
-const cfg = {
+
+const firebaseConfig = {
   apiKey: "AIzaSyDBJ0hHjVyEnwg7mV7ECeG163K7fs1fsiE",
   authDomain: "du-verse-e75db.firebaseapp.com",
-  databaseURL: "https://du-verse-e75db-default-rtdb.asia-southeast1.firebasedatabase.app",
+  databaseURL:
+    "https://du-verse-e75db-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "du-verse-e75db",
   storageBucket: "du-verse-e75db.firebasestorage.app",
   messagingSenderId: "84735746102",
   appId: "1:84735746102:web:6fe5353a0586db71323897"
 };
 
-try {
-  const app = initializeApp(cfg);
-  const auth = getAuth(app);
-  const fs = getFirestore(app);
-  const rtdb = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const firestore = getFirestore(app);
+const realtimeDB = getDatabase(app);
 
-  const user = await new Promise(res => {
-    let asked = false;
-    onAuthStateChanged(auth, u => {
-      if (u) res(u);
-      else if (!asked) {
-        asked = true;
-        signInAnonymously(auth).catch(() => res(null));
-      }
-    });
-  });
+const rtRef = path => ref(realtimeDB, path);
 
-  if (!user) throw new Error("no auth");
+function reportError(error) {
+  console.error("[Campus Firebase]", error);
 
-  const uid = user.uid;
-  const staff = user.email === ADMIN_EMAIL && user.emailVerified === true;
+  window.dispatchEvent(
+    new CustomEvent("campus-network-error", {
+      detail: error?.code || error?.message || "Firebase operation failed"
+    })
+  );
+}
 
-  /* Firestore adapter and persistent Campus approval */
-  const fsPath = p => {
-    const [a, ...r] = p.split("/");
-    return ["campus_" + a, ...r];
+function watchRealtime(path, callback, errorCallback = reportError) {
+  return onValue(rtRef(path), callback, errorCallback);
+}
+
+function watchChildren(path, map, refresh) {
+  const r = rtRef(path);
+
+  const addOrChange = snapshot => {
+    map.set(snapshot.key, snapshot.val());
+    refresh();
   };
 
-  const snap = s => ({ exists: s.exists(), data: () => s.data() });
+  const unsubscribers = [
+    onChildAdded(r, addOrChange, reportError),
+    onChildChanged(r, addOrChange, reportError),
+    onChildRemoved(
+      r,
+      snapshot => {
+        map.delete(snapshot.key);
+        refresh();
+      },
+      reportError
+    )
+  ];
 
-  const db = {
-    doc: p => {
-      const [c, id] = fsPath(p);
-      const r = doc(fs, c, id);
+  return () => unsubscribers.forEach(unsubscribe => unsubscribe());
+}
 
-      return {
-        set: async d => {
-          if (c === "campus_status") {
-            if (d.s === "approved") {
-              await rset(ref(rtdb, "campus/ok/" + id), {
-                m: d.method === "un" ? "un" : "du",
-                ...(d.method === "un" && d.handle
-                  ? { h: String(d.handle).toLowerCase() }
-                  : {})
-              });
-              return;
-            }
-            await rremove(ref(rtdb, "campus/ok/" + id));
+function firestorePath(path) {
+  const [collectionName, ...rest] = path.split("/");
+  return ["campus_" + collectionName, ...rest];
+}
+
+function createDatabaseAdapter(uid, staff) {
+  const document = path => {
+    const [collectionName, documentId] = firestorePath(path);
+    const documentRef = doc(firestore, collectionName, documentId);
+
+    return {
+      set: async data => {
+        if (collectionName === "campus_status") {
+          if (data.s === "approved") {
+            await set(rtRef("campus/ok/" + documentId), {
+              m: data.method || "un",
+              h: String(data.handle || "").toLowerCase()
+            });
+            return;
           }
-          return setDoc(r, d);
-        },
 
-        delete: () => deleteDoc(r),
-
-        onSnapshot: (cb, er) => {
-          if (c !== "campus_status") {
-            return onSnapshot(r, s => cb(snap(s)), er);
-          }
-
-          let ok, st;
-          const emit = () => {
-            if (ok === undefined || st === undefined) return;
-
-            if (ok.exists()) {
-              cb({
-                exists: true,
-                data: () => ({
-                  s: "approved",
-                  method: ok.val().m,
-                  handle: ok.val().h || ""
-                })
-              });
-            } else if (st.exists()) {
-              cb(snap(st));
-            } else {
-              cb({ exists: false, data: () => ({}) });
-            }
-          };
-
-          const u1 = onValue(
-            ref(rtdb, "campus/ok/" + id),
-            s => { ok = s; emit(); },
-            er
-          );
-
-          const u2 = onSnapshot(
-            r,
-            s => { st = s; emit(); },
-            er
-          );
-
-          return () => { u1(); u2(); };
+          await remove(rtRef("campus/ok/" + documentId));
         }
-      };
-    },
 
-    collection: p => {
-      const [c] = fsPath(p);
+        return setDoc(documentRef, data);
+      },
+
+      delete: () => deleteDoc(documentRef),
+
+      onSnapshot: (callback, errorCallback) => {
+        if (collectionName !== "campus_status") {
+          return onSnapshot(
+            documentRef,
+            snapshot =>
+              callback({
+                exists: () => snapshot.exists(),
+                data: () => snapshot.data()
+              }),
+            errorCallback || reportError
+          );
+        }
+
+        let approval;
+        let status;
+        let approvalLoaded = false;
+        let statusLoaded = false;
+
+        const emit = () => {
+          if (!approvalLoaded || !statusLoaded) return;
+
+          if (approval?.exists()) {
+            const value = approval.val();
+
+            callback({
+              exists: () => true,
+              data: () => ({
+                s: "approved",
+                method: value.m,
+                handle: value.h || ""
+              })
+            });
+          } else if (status?.exists()) {
+            callback({
+              exists: () => true,
+              data: () => status.data()
+            });
+          } else {
+            callback({
+              exists: () => false,
+              data: () => ({})
+            });
+          }
+        };
+
+        const stopApproval = onValue(
+          rtRef("campus/ok/" + documentId),
+          snapshot => {
+            approval = snapshot;
+            approvalLoaded = true;
+            emit();
+          },
+          errorCallback || reportError
+        );
+
+        const stopStatus = onSnapshot(
+          documentRef,
+          snapshot => {
+            status = {
+              exists: () => snapshot.exists(),
+              data: () => snapshot.data()
+            };
+            statusLoaded = true;
+            emit();
+          },
+          errorCallback || reportError
+        );
+
+        return () => {
+          stopApproval();
+          stopStatus();
+        };
+      }
+    };
+  };
+
+  return {
+    doc: document,
+
+    collection: path => {
+      const [collectionName] = firestorePath(path);
+
       return {
-        onSnapshot: (cb, er) =>
-          onSnapshot(collection(fs, c), q =>
-            cb({
-              docs: q.docs.map(d => ({
-                id: d.id,
-                data: () => d.data()
-              }))
-            }),
-            er
+        onSnapshot: (callback, errorCallback) =>
+          onSnapshot(
+            collection(firestore, collectionName),
+            snapshot =>
+              callback({
+                docs: snapshot.docs.map(item => ({
+                  id: item.id,
+                  data: () => item.data()
+                }))
+              }),
+            errorCallback || reportError
           )
       };
     }
   };
+}
 
-  /* Realtime multiplayer transport */
-  function makeTr() {
-    const prof = new Map();
-    const dyn = new Map();
-    let cb = null, qcb = null, sc = null;
-    let un = [], timer = 0, minePr = "", myDyn = null;
+function createMultiplayerTransport(uid) {
+  const profiles = new Map();
+  const positions = new Map();
 
-    const flush = () => {
-      timer = 0;
-      if (qcb) qcb([...prof].map(([id, p]) => ({ id, jt: p.jt })));
+  let playerCallback = null;
+  let queueCallback = null;
+  let currentScene = null;
+  let stopProfiles = null;
+  let stopPositions = null;
+  let refreshTimer = null;
+  let lastProfile = "";
+  let currentPositionPath = null;
 
-      if (cb) {
-        cb(sc
-          ? [...dyn]
-              .filter(([id]) => id !== uid && prof.has(id))
-              .map(([id, d]) => {
-                const p = prof.get(id);
-                return {
-                  id,
-                  s: {
-                    v: 1, u: id, n: p.n, lk: Object.values(p.lk || {}),
-                    x: d.x, y: d.y, f: d.f, m: d.m, sc, jt: p.jt,
-                    w: 1, ok: p.ok, sy: d.sy || null, em: d.em || null
-                  }
-                };
-              })
-          : []);
+  function refresh() {
+    if (refreshTimer) return;
+
+    refreshTimer = setTimeout(() => {
+      refreshTimer = null;
+
+      if (queueCallback) {
+        queueCallback(
+          [...profiles].map(([id, profile]) => ({
+            id,
+            jt: profile.jt,
+            n: profile.n,
+            ok: profile.ok
+          }))
+        );
       }
-    };
 
-    const kick = () => {
-      if (!timer) timer = setTimeout(flush, 90);
-    };
+      if (playerCallback) {
+        const players = [];
 
-    const watch = (path, map) => {
-      const r = ref(rtdb, path);
-      const f = s => { map.set(s.key, s.val()); kick(); };
+        for (const [id, position] of positions) {
+          if (id === uid) continue;
 
-      const a = [
-        onChildAdded(r, f),
-        onChildChanged(r, f),
-        onChildRemoved(r, s => { map.delete(s.key); kick(); })
-      ];
+          const profile = profiles.get(id);
+          if (!profile || !position) continue;
 
-      return () => a.forEach(x => x());
-    };
-
-    const clear = () => {
-      un.forEach(x => x());
-      un = [];
-      dyn.clear();
-      sc = null;
-      minePr = "";
-
-      rremove(ref(rtdb, "campus/pr/" + uid)).catch(() => {});
-      if (myDyn) rremove(ref(rtdb, myDyn)).catch(() => {});
-      myDyn = null;
-    };
-
-    return {
-      kind: "fb",
-
-      on: (f, q) => {
-        cb = f;
-        qcb = q;
-        watch("campus/pr", prof);
-      },
-
-      set: (s, live) => {
-        if (!s) { clear(); return; }
-
-        const want = live ? s.sc : null;
-
-        if (want !== sc) {
-          un.forEach(x => x());
-          un = [];
-          dyn.clear();
-
-          if (myDyn) {
-            rremove(ref(rtdb, myDyn)).catch(() => {});
-            myDyn = null;
-          }
-
-          sc = want;
-          if (sc) un.push(watch("campus/p/" + sc, dyn));
-          kick();
+          players.push({
+            id,
+            s: {
+              v: 1,
+              u: id,
+              n: profile.n || "Student",
+              lk: Object.values(profile.lk || {}),
+              x: position.x,
+              y: position.y,
+              f: position.f,
+              m: position.m,
+              sc: currentScene,
+              jt: profile.jt,
+              w: 1,
+              ok: profile.ok,
+              sy: position.sy || null,
+              em: position.em || null
+            }
+          });
         }
 
-        const key = JSON.stringify([s.n, s.lk, s.ok, s.jt]);
-
-        if (key !== minePr) {
-          minePr = key;
-          const r = ref(rtdb, "campus/pr/" + uid);
-
-          rset(r, {
-            n: s.n, lk: s.lk, ok: s.ok || "du", jt: s.jt
-          }).catch(() => {});
-
-          onDisconnect(r).remove();
-        }
-
-        if (live) {
-          const path = "campus/p/" + s.sc + "/" + uid;
-          const r = ref(rtdb, path);
-
-          rset(r, {
-            x: s.x, y: s.y, f: s.f, m: s.m,
-            sy: s.sy || null, em: s.em || null
-          }).catch(() => {});
-
-          if (myDyn !== path) {
-            myDyn = path;
-            onDisconnect(r).remove();
-          }
-        }
-      },
-
-      leave: clear
-    };
+        playerCallback(currentScene ? players : []);
+      }
+    }, 100);
   }
 
+  function stopSceneListeners() {
+    if (stopPositions) stopPositions();
+    stopPositions = null;
+    positions.clear();
+    currentScene = null;
+  }
+
+  async function leave() {
+    if (stopProfiles) stopProfiles();
+    stopProfiles = null;
+
+    stopSceneListeners();
+
+    try {
+      await remove(rtRef("campus/pr/" + uid));
+
+      if (currentPositionPath) {
+        await remove(rtRef(currentPositionPath));
+      }
+    } catch (error) {
+      reportError(error);
+    }
+
+    currentPositionPath = null;
+    lastProfile = "";
+  }
+
+  return {
+    kind: "fb",
+
+    on: (onPlayers, onQueue) => {
+      playerCallback = onPlayers;
+      queueCallback = onQueue;
+
+      if (stopProfiles) stopProfiles();
+
+      stopProfiles = watchChildren(
+        "campus/pr",
+        profiles,
+        refresh
+      );
+    },
+
+    set: (state, isLive) => {
+      if (!state) {
+        void leave();
+        return;
+      }
+
+      const desiredScene = isLive ? state.sc : null;
+
+      if (desiredScene !== currentScene) {
+        stopSceneListeners();
+
+        if (currentPositionPath) {
+          remove(rtRef(currentPositionPath)).catch(reportError);
+          currentPositionPath = null;
+        }
+
+        currentScene = desiredScene;
+
+        if (currentScene) {
+          stopPositions = watchChildren(
+            "campus/p/" + currentScene,
+            positions,
+            refresh
+          );
+        }
+      }
+
+      const profileSignature = JSON.stringify([
+        state.n,
+        state.lk,
+        state.ok,
+        state.jt
+      ]);
+
+      if (profileSignature !== lastProfile) {
+        lastProfile = profileSignature;
+
+        const profileRef = rtRef("campus/pr/" + uid);
+
+        set(profileRef, {
+          n: state.n || "Student",
+          lk: state.lk || {},
+          ok: state.ok || "un",
+          jt: state.jt || Date.now()
+        }).catch(reportError);
+
+        onDisconnect(profileRef).remove().catch(reportError);
+      }
+
+      if (isLive && state.sc) {
+        const path = "campus/p/" + state.sc + "/" + uid;
+        const positionRef = rtRef(path);
+
+        set(positionRef, {
+          x: state.x,
+          y: state.y,
+          f: state.f,
+          m: state.m,
+          sy: state.sy || null,
+          em: state.em || null
+        }).catch(reportError);
+
+        if (currentPositionPath !== path) {
+          currentPositionPath = path;
+          onDisconnect(positionRef).remove().catch(reportError);
+        }
+      }
+    },
+
+    leave
+  };
+}
+
+async function verifyUsername(uid, username) {
+  const handle = String(username || "")
+    .trim()
+    .replace(/^@/, "")
+    .toLowerCase();
+
+  if (!handle) return false;
+
+  const profileSnapshot = await getDoc(doc(firestore, "users", uid));
+
+  if (!profileSnapshot.exists()) return false;
+
+  const profile = profileSnapshot.data();
+  const profileUsername = String(profile.username || "")
+    .trim()
+    .replace(/^@/, "")
+    .toLowerCase();
+
+  if (profileUsername !== handle) return false;
+
+  const slotSnapshot = await getDoc(
+    doc(firestore, "username_slots", handle)
+  );
+
+  if (!slotSnapshot.exists()) return false;
+
+  return slotSnapshot.data().uid === uid ? handle : false;
+}
+
+async function initializeCampus(user) {
+  if (!user) throw new Error("Firebase authentication unavailable.");
+
+  const staff =
+    user.email === ADMIN_EMAIL &&
+    user.emailVerified === true;
+
+  const db = createDatabaseAdapter(user.uid, staff);
+
   window.__fbResolve({
-    uid,
-    staff,
-    account: !user.isAnonymous && !!user.email,
+    uid: user.uid,
     email: user.email || "",
+    account: !user.isAnonymous && !!user.email,
+    staff,
     db,
-    tr: makeTr(),
+    tr: createMultiplayerTransport(user.uid),
 
-    // Only accept the username attached to this authenticated Unrest account.
-    checkUsername: async h => {
-      const handle = String(h || "")
-        .trim()
-        .replace(/^@/, "")
-        .toLowerCase();
+    checkUsername: username => {
+      if (user.isAnonymous) {
+        throw new Error("Sign in with your Unrest account first.");
+      }
 
-      if (!handle || user.isAnonymous) return false;
+      return verifyUsername(user.uid, username);
+    },
 
-      const profileSnap = await getDoc(doc(fs, "users", uid));
-      const profile = profileSnap.exists() ? profileSnap.data() : {};
-      const ownHandle = String(profile.username || "").trim().toLowerCase();
+    approveUsername: async username => {
+      if (user.isAnonymous) {
+        throw new Error("Sign in with your Unrest account first.");
+      }
 
-      if (!ownHandle || ownHandle !== handle) return false;
+      const handle = await verifyUsername(user.uid, username);
 
-      const slotSnap = await getDoc(doc(fs, "username_slots", handle));
-      const slot = slotSnap.exists() ? slotSnap.data() : {};
+      if (!handle) {
+        throw new Error("nouser");
+      }
 
-      return slotSnap.exists() && slot.uid === uid ? ownHandle : false;
+      // The database rules must authorize this approval write.
+      await set(rtRef("campus/ok/" + user.uid), {
+        m: "un",
+        h: handle
+      });
+
+      return handle;
+    },
+
+    watchApprovedUsers: (callback, errorCallback) => {
+      if (!staff) throw new Error("Team access required.");
+
+      return watchRealtime(
+        "campus/ok",
+        snapshot => {
+          const data = snapshot.val() || {};
+
+          callback(
+            Object.entries(data).map(([userId, value]) => ({
+              uid: userId,
+              handle: value?.h || "",
+              method: value?.m || ""
+            }))
+          );
+        },
+        errorCallback || reportError
+      );
+    },
+
+    watchPlayers: (callback, errorCallback) => {
+      if (!staff) throw new Error("Team access required.");
+
+      let profiles = {};
+      let scenes = {};
+
+      const emit = () => {
+        const players = [];
+
+        for (const [scene, users] of Object.entries(scenes)) {
+          for (const [playerId, position] of Object.entries(users || {})) {
+            const profile = profiles[playerId];
+
+            if (!profile || !position) continue;
+
+            players.push({
+              uid: playerId,
+              name: profile.n || "Student",
+              handle: "",
+              scene,
+              x: position.x,
+              y: position.y,
+              joinedAt: profile.jt || 0,
+              moving: !!position.m
+            });
+          }
+        }
+
+        callback(players);
+      };
+
+      const stopProfiles = watchRealtime(
+        "campus/pr",
+        snapshot => {
+          profiles = snapshot.val() || {};
+          emit();
+        },
+        errorCallback || reportError
+      );
+
+      const stopPositions = watchRealtime(
+        "campus/p",
+        snapshot => {
+          scenes = snapshot.val() || {};
+          emit();
+        },
+        errorCallback || reportError
+      );
+
+      return () => {
+        stopProfiles();
+        stopPositions();
+      };
     },
 
     studentSignIn: (email, password) =>
@@ -287,19 +555,56 @@ try {
         String(password || "")
       ),
 
-    staffSignIn: () =>
-      signInWithPopup(auth, new GoogleAuthProvider())
-        .then(r => {
-          if (r.user.email !== ADMIN_EMAIL || !r.user.emailVerified) {
-            return signOut(auth);
-          }
-        })
-        .then(() => location.reload())
-        .catch(() => {}),
+    staffSignIn: async (email, password) => {
+      const result = await signInWithEmailAndPassword(
+        auth,
+        String(email || "").trim(),
+        String(password || "")
+      );
 
-    staffSignOut: () => signOut(auth).then(() => location.reload())
+      if (
+        result.user.email !== ADMIN_EMAIL ||
+        !result.user.emailVerified
+      ) {
+        await signOut(auth);
+        throw new Error("not-staff");
+      }
+
+      location.reload();
+      return result;
+    },
+
+    staffSignOut: () =>
+      signOut(auth).then(() => location.reload())
   });
-} catch (e) {
-  console.warn("Campus multiplayer: Firebase unavailable", e);
+}
+
+try {
+  let initialUser = await new Promise((resolve, reject) => {
+    let unsubscribe = () => {};
+
+    unsubscribe = onAuthStateChanged(
+      auth,
+      user => {
+        unsubscribe();
+        resolve(user);
+      },
+      reject
+    );
+  });
+
+  if (!initialUser) {
+    try {
+      const result = await signInAnonymously(auth);
+      initialUser = result.user;
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  }
+
+  await initializeCampus(initialUser);
+} catch (error) {
+  reportError(error);
   window.__fbResolve(null);
 }
