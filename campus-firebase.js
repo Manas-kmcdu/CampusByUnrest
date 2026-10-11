@@ -1,4 +1,3 @@
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 
 import {
@@ -229,8 +228,14 @@ function createMultiplayerTransport(uid) {
   let stopPositions = null;
   let refreshTimer = null;
   let lastProfile = "";
-  let currentPositionPath = null;
+  let currentPositionPath = null; // the position node we last wrote
+  let registeredPath = null; // the node our onDisconnect cleanup is armed on
+  let lastState = null; // so we can re-announce after a reconnect
+  let lastLive = false;
+  let firstConnect = true;
 
+  // Short debounce only batches bursts of child events. Smoothness no longer
+  // depends on it because every position carries the sender's own timestamp.
   function refresh() {
     if (refreshTimer) return;
 
@@ -268,6 +273,7 @@ function createMultiplayerTransport(uid) {
               y: position.y,
               f: position.f,
               m: position.m,
+              t: position.t || 0,
               sc: currentScene,
               jt: profile.jt,
               w: 1,
@@ -280,7 +286,7 @@ function createMultiplayerTransport(uid) {
 
         playerCallback(currentScene ? players : []);
       }
-    }, 100);
+    }, 40);
   }
 
   function stopSceneListeners() {
@@ -288,9 +294,13 @@ function createMultiplayerTransport(uid) {
     stopPositions = null;
     positions.clear();
     currentScene = null;
+    refresh(); // tell the game the old scene's players are gone
   }
 
   async function leave() {
+    lastState = null;
+    lastLive = false;
+
     if (stopProfiles) stopProfiles();
     stopProfiles = null;
 
@@ -307,10 +317,11 @@ function createMultiplayerTransport(uid) {
     }
 
     currentPositionPath = null;
+    registeredPath = null;
     lastProfile = "";
   }
 
-  return {
+  const transport = {
     kind: "fb",
 
     on: (onPlayers, onQueue) => {
@@ -319,17 +330,21 @@ function createMultiplayerTransport(uid) {
 
       if (stopProfiles) stopProfiles();
 
-      stopProfiles = watchChildren(
-        "campus/pr",
-        profiles,
-        refresh
-      );
+      stopProfiles = watchChildren("campus/pr", profiles, refresh);
     },
 
     set: (state, isLive) => {
       if (!state) {
         void leave();
         return;
+      }
+
+      lastState = state;
+      lastLive = !!isLive;
+
+      // `leave()` tears the profile listener down; bring it back on rejoin.
+      if (!stopProfiles && queueCallback) {
+        stopProfiles = watchChildren("campus/pr", profiles, refresh);
       }
 
       const desiredScene = isLive ? state.sc : null;
@@ -384,12 +399,15 @@ function createMultiplayerTransport(uid) {
           y: state.y,
           f: state.f,
           m: state.m,
+          t: Date.now(), // sender clock, used by receivers to interpolate
           sy: state.sy || null,
           em: state.em || null
         }).catch(reportError);
 
-        if (currentPositionPath !== path) {
-          currentPositionPath = path;
+        currentPositionPath = path;
+
+        if (registeredPath !== path) {
+          registeredPath = path;
           onDisconnect(positionRef).remove().catch(reportError);
         }
       }
@@ -397,6 +415,30 @@ function createMultiplayerTransport(uid) {
 
     leave
   };
+
+  // When the connection drops (phone sleeps, wifi blip, tab throttled) the
+  // server runs our onDisconnect handlers and deletes our presence. The client
+  // used to think it was still published, so other players never saw us again
+  // until a refresh. On every reconnect, publish ourselves again.
+  onValue(
+    rtRef(".info/connected"),
+    snapshot => {
+      if (snapshot.val() !== true) return;
+
+      if (firstConnect) {
+        firstConnect = false;
+        return;
+      }
+
+      lastProfile = "";
+      registeredPath = null;
+
+      if (lastState) transport.set(lastState, lastLive);
+    },
+    reportError
+  );
+
+  return transport;
 }
 
 async function verifyUsername(uid, username) {
