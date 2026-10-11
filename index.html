@@ -1625,20 +1625,28 @@ function mpClean(s){
   if(!s||typeof s!=='object'||s.v!==1||!Array.isArray(s.lk)) return null;
   const len=MP_LEN(), lk=len.map((n,i)=>Math.max(0,Math.min(n-1,(+s.lk[i])|0)));
   const num=(v,a,b)=>Math.max(a,Math.min(b,+v||0));
-  const o={ u:mpStr(s.u,40), n:mpStr(s.n,14)||'Student', lk, x:num(s.x,0,W), y:num(s.y,0,H), f:s.f<0?-1:1, m:s.m?1:0, sc:mpStr(s.sc,16), jt:num(s.jt,0,Date.now()+5000), w:s.w?1:0, ok:mpStr(s.ok,8), sy:null, em:null };
+  const o={ u:mpStr(s.u,40), n:mpStr(s.n,14)||'Student', lk, x:num(s.x,0,W), y:num(s.y,0,H), f:s.f<0?-1:1, m:s.m?1:0, sc:mpStr(s.sc,16), jt:num(s.jt,0,Date.now()+5000), t:+s.t||0, w:s.w?1:0, ok:mpStr(s.ok,8), sy:null, em:null };
   if(s.sy&&typeof s.sy==='object'&&s.sy.t) o.sy={t:mpStr(s.sy.t,60),ts:+s.sy.ts||0};
   if(s.em&&typeof s.em==='object') o.em={i:Math.max(0,Math.min(4,(+s.em.i)|0)),ts:+s.em.ts||0};
   return o;
 }
+const mpDelay=()=>MP.tr&&MP.tr.kind==='fb'?200:400;   // render peers this far in the past so there is always a next sample to glide to
 function mpIngest(list){
-  const seen=new Set();
+  const seen=new Set(), now=Date.now();
   for(const it of list){
     const s=mpClean(it.s); if(!s) continue; seen.add(it.id);
     let o=MP.others.get(it.id);
-    if(!o){ let h=0; for(const ch of it.id) h=(h*31+ch.charCodeAt(0))|0; o={id:it.id,dx:s.x,dy:s.y,bubble:null,emote:null,lastSay:0,lastEm:0,seed:Math.abs(h%97)/7,ent:{x:s.x,y:s.y,face:1,moving:false,seed:0,look:null,bubble:null,emote:null}}; MP.others.set(it.id,o); o.lastSay=s.sy?s.sy.ts:0; o.lastEm=s.em?s.em.ts:0; }
-    if(o.s&&o.s.sc!==s.sc){ o.dx=s.x; o.dy=s.y; }
+    if(!o){ let h=0; for(const ch of it.id) h=(h*31+ch.charCodeAt(0))|0; o={id:it.id,dx:s.x,dy:s.y,bubble:null,emote:null,lastSay:0,lastEm:0,seed:Math.abs(h%97)/7,buf:[],off:null,lastKey:'',seenAt:now,ent:{x:s.x,y:s.y,face:1,moving:false,seed:0,look:null,bubble:null,emote:null}}; MP.others.set(it.id,o); o.lastSay=s.sy?s.sy.ts:0; o.lastEm=s.em?s.em.ts:0; }
+    if(o.s&&o.s.sc!==s.sc){ o.buf=[]; o.lastKey=''; }
     o.s=s; o.look=Object.assign({name:s.n},{skin:s.lk[0],hair:s.lk[1],hairc:s.lk[2],outfit:s.lk[3],outc:s.lk[4],shoe:s.lk[5],bag:s.lk[6],acc:s.lk[7],merch:s.lk[8]});
     o.ent.look=o.look;
+    const key=s.t?('t'+s.t):(s.x+','+s.y+','+s.f);
+    if(key!==o.lastKey){
+      o.lastKey=key; o.seenAt=now; let lt=now;
+      if(s.t){ const d=now-s.t; if(o.off==null||d<o.off) o.off=d; else o.off+=(d-o.off)*.01; lt=s.t+o.off; }   // sender clock mapped onto ours
+      const last=o.buf[o.buf.length-1]; if(last&&lt<=last.t) lt=last.t+1;
+      o.buf.push({t:lt,x:s.x,y:s.y,f:s.f}); if(o.buf.length>24) o.buf.shift();
+    }
     if(s.sy&&s.sy.ts!==o.lastSay){ o.lastSay=s.sy.ts; if(Date.now()-s.sy.ts<9000) o.bubble={text:s.sy.t,until:tNow+4.5}; }
     if(s.em&&s.em.ts!==o.lastEm){ o.lastEm=s.em.ts; if(Date.now()-s.em.ts<9000) o.emote={g:EMOTES[s.em.i],until:tNow+1.8}; }
   }
@@ -1664,18 +1672,26 @@ function mpCompute(){
 }
 function mpPush(force){
   const tr=MP.tr; if(!tr) return; if(!MP.want){ if(MP.sent){ tr.set(null); MP.sent=''; } return; }
-  const now=performance.now(); if(!force&&now-MP.sentAt<300) return;
-  const s=mpState(), key=JSON.stringify(s)+MP.live; if(key===MP.sent&&now-MP.sentAt<(tr.kind==='local'?2000:1e9)) return;
+  const now=performance.now(); if(!force&&now-MP.sentAt<(tr.kind==='fb'?110:300)) return;
+  const s=mpState(), key=JSON.stringify(s)+MP.live; if(!force&&key===MP.sent&&now-MP.sentAt<(tr.kind==='local'?2000:tr.kind==='fb'?5000:1e9)) return;
   MP.sent=key; MP.sentAt=now; tr.set(s,MP.live);
 }
 function mpTick(dt){
   if(!MP.tr) return;
-  const kk=1-Math.pow(.001,dt);
-  MP.others.forEach(o=>{ if(!o.s) return; const ex=o.s.x-o.dx, ey=o.s.y-o.dy; if(Math.abs(ex)+Math.abs(ey)>420){ o.dx=o.s.x; o.dy=o.s.y; } else { o.dx+=ex*kk; o.dy+=ey*kk; }
-    const e=o.ent; e.x=o.dx; e.y=o.dy; e.face=o.s.f; e.moving=Math.abs(ex)+Math.abs(ey)>3; e.bubble=o.bubble; e.emote=o.emote; e.look=o.look; e.seed=o.seed; });
+  const rt=Date.now()-mpDelay();
+  MP.others.forEach(o=>{ const b=o.buf; if(!o.s||!b||!b.length) return;
+    let x,y,f=o.s.f,mv=false; const n=b.length;
+    if(rt<=b[0].t){ x=b[0].x; y=b[0].y; f=b[0].f; }
+    else if(rt>=b[n-1].t){ x=b[n-1].x; y=b[n-1].y; f=b[n-1].f; }
+    else { let i=n-2; while(i>0&&b[i].t>rt) i--; const a=b[i], c=b[i+1], k=(rt-a.t)/(c.t-a.t), dist=Math.hypot(c.x-a.x,c.y-a.y);
+      if(dist>420){ x=c.x; y=c.y; f=c.f; }
+      else { x=a.x+(c.x-a.x)*k; y=a.y+(c.y-a.y)*k; mv=dist/((c.t-a.t)/1000)>8; f=Math.abs(c.x-a.x)>1?(c.x>a.x?1:-1):c.f; } }
+    o.dx=x; o.dy=y; const e=o.ent; e.x=x; e.y=y; e.face=f; e.moving=mv; e.bubble=o.bubble; e.emote=o.emote; e.look=o.look; e.seed=o.seed; });
   mpPush(false);
 }
-const mpVisible=(o,sc)=>MP.live&&MP.liveIds.has(o.id)&&o.s&&o.s.sc===sc&&!MP.muted.has(o.s.u);
+setInterval(()=>{ if(MP.want&&MP.tr) mpPush(false); },1500);   // heartbeat keeps running when the tab throttles animation frames
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&MP.want) mpPush(true); });
+const mpVisible=(o,sc)=>MP.live&&MP.liveIds.has(o.id)&&o.s&&o.s.sc===sc&&!MP.muted.has(o.s.u)&&(!o.s.t||Date.now()-o.seenAt<20000);
 function mpEnts(sc){
   if(!MP.live) return [];
   const out=[]; MP.others.forEach(o=>{ if(!mpVisible(o,sc)) return;
@@ -1832,7 +1848,7 @@ $('#bEnter').onclick=function(){ _enterClick.apply(this,arguments); if(!MP.modeS
 
 /* ---------- boot ---------- */
 async function mpInit(){
-  try{ if(window.__fbReady){ const fb=await Promise.race([window.__fbReady,new Promise(r=>setTimeout(()=>r(null),6000))]); if(fb){ MP.fb=fb; MP.uid=fb.uid; MP.db=fb.db; MP.staff=fb.staff; } } }catch(e){}
+  try{ if(window.__fbReady){ const fb=await Promise.race([window.__fbReady,new Promise(r=>setTimeout(()=>r(null),12000))]); if(fb){ MP.fb=fb; MP.uid=fb.uid; MP.db=fb.db; MP.staff=fb.staff; } } }catch(e){}
   try{
     if(!MP.fb&&window.claude&&claude.use){
       const u=await claude.use('user');
@@ -1855,6 +1871,7 @@ async function mpInit(){
   MP.tr=(MP.fb&&MP.fb.tr)||await mpOpenTr();
   if(MP.tr){ MP.tr.on(mpIngest,l=>{ MP.qlist=l; mpCompute(); }); MP.kind=MP.tr.kind; }
   mpUI(); mpAutoJoin();
+  if(!MP.fb&&window.__fbReady) window.__fbReady.then(fb=>{ if(fb&&!MP.fb){ try{ MP.tr&&MP.tr.leave&&MP.tr.leave(); }catch(e){} MP.want=false; MP.live=false; MP.others.clear(); MP.qlist=null; mpInit(); } });
 }
 
 /* ===== Lights: lamps, string lights, windows and doors that really switch on ===== */
